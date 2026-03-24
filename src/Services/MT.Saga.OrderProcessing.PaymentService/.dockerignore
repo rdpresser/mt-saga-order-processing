@@ -1,0 +1,21 @@
+# VCS
+.git
+.gitignore
+
+# Build artifacts
+**/bin/
+**/obj/
+
+# IDE
+.vs/
+.vscode/
+
+# Local app settings and user files
+**/*.user
+**/*.suo
+
+# Test and docs (not needed for service image build)
+tests/
+README.md
+LICENSE*
+references/

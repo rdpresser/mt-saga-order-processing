@@ -1,0 +1,19 @@
+<Project>
+  <Target Name="FailIfPackageReferenceHasVersion"
+          BeforeTargets="CollectPackageReferences"
+          Condition="'$(ManagePackageVersionsCentrally)' == 'true'">
+    <ItemGroup>
+      <PackageRefsWithVersion Include="@(PackageReference)"
+                              Condition="'%(PackageReference.Version)' != ''" />
+    </ItemGroup>
+
+    <Error Condition="'@(PackageRefsWithVersion)' != ''"
+           Text="Central Package Management (CPM) is enabled. Do not specify Version in .csproj PackageReference. Move versions to Directory.Packages.props. Violations: @(PackageRefsWithVersion->'%(Identity)=%(Version)', ' | ')" />
+  </Target>
+
+  <Target Name="FailIfTargetFrameworkIsNotNet10"
+          BeforeTargets="Build">
+    <Error Condition="'$(TargetFramework)' != '' AND '$(TargetFramework)' != 'net10.0'"
+           Text="Invalid TargetFramework: $(TargetFramework). Required standard: net10.0" />
+  </Target>
+</Project>

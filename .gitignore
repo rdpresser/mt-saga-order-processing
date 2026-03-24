@@ -44,6 +44,7 @@ Generated\ Files/
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
+test-results/
 
 # NUnit
 *.VisualState.xml
@@ -358,6 +359,9 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Local reference repositories and study projects
+references/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd

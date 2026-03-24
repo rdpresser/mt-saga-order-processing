@@ -1,0 +1,25 @@
+# VCS
+.git
+.gitignore
+
+# Build artifacts
+**/bin/
+**/obj/
+
+# IDE
+.vs/
+.vscode/
+
+# User files
+**/*.user
+**/*.suo
+
+# Tests, docs and references not required for runtime images
+tests/
+README.md
+LICENSE*
+references/
+
+# Local env files
+**/.env
+**/.env.*

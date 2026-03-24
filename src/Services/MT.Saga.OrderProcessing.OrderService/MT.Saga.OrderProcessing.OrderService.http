@@ -1,0 +1,6 @@
+@MT.Saga.OrderProcessing.OrderService_HostAddress = http://localhost:5214
+
+GET {{MT.Saga.OrderProcessing.OrderService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
