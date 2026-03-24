@@ -363,5 +363,8 @@ MigrationBackup/
 # Local reference repositories and study projects
 references/
 
+# Local AppHost Aspire environment file
+src/MT.Saga.AppHost.Aspire/.env
+
 # Fody - auto-generated XML schema
 FodyWeavers.xsd

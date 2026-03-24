@@ -739,7 +739,7 @@ Apply the same organizational principles while keeping package choices and versi
 .\dev.ps1 down
 ```
 
-RabbitMQ Management UI: http://localhost:15672 (guest/guest)
+RabbitMQ Management UI: http://localhost:15672 (guest/guest)  
 PostgreSQL: localhost:5432
 
 ---
@@ -832,3 +832,9 @@ In distributed systems:
 > I added OpenTelemetry and basic observability because debugging distributed systems without tracing is extremely challenging.
 >
 > This provides full visibility of Saga execution across services.
+
+---
+
+# Debugging Configuration
+
+Prefer a unique debug profile of the AppHost in HTTP in Visual Studio to directly open the dashboard and avoid HTTPS certificate issues during local development.

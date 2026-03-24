@@ -1,5 +1,8 @@
 <Solution>
-  <Folder Name="/apphost-compose/" />
+  <Folder Name="/apphost-aspire/">
+    <Project Path="src/MT.Saga.AppHost.Aspire/MT.Saga.AppHost.Aspire.csproj" />
+    <Project Path="src/MT.Saga.AppHost.Aspire.ServiceDefaults/MT.Saga.AppHost.Aspire.ServiceDefaults.csproj" />
+  </Folder>
   <Folder Name="/solution-items/">
     <File Path=".editorconfig" />
     <File Path="dev.ps1" />

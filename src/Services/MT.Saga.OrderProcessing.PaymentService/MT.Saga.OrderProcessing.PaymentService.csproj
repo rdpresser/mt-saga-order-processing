@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\MT.Saga.AppHost.Aspire.ServiceDefaults\MT.Saga.AppHost.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\MT.Saga.OrderProcessing.Contracts\MT.Saga.OrderProcessing.Contracts.csproj" />
   </ItemGroup>
 </Project>

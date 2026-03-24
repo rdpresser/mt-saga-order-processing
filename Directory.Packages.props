@@ -18,12 +18,19 @@
     <PackageVersion Include="Npgsql" Version="10.0.1" />
 
     <!-- API / Hosting -->
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.0" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.0" />
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.2.0" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.2.0" />
+    <PackageVersion Include="DotNetEnv" Version="3.1.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="9.4.2" />
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" Version="2.6.0" />
@@ -33,6 +40,7 @@
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.0" />
 
     <!-- Logging -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
