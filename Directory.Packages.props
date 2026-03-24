@@ -2,21 +2,18 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Messaging / Saga -->
-    <PackageVersion Include="MassTransit" Version="8.5.0" />
-    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.0" />
-    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.5.0" />
-    <PackageVersion Include="MassTransit.TestFramework" Version="8.5.0" />
-
+    <PackageVersion Include="MassTransit" Version="8.5.8" />
+    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.8" />
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.5.8" />
+    <PackageVersion Include="MassTransit.TestFramework" Version="8.5.8" />
     <!-- Persistence -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.3" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.4" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageVersion Include="Npgsql" Version="10.0.1" />
-
     <!-- API / Hosting -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.0" />
@@ -25,32 +22,29 @@
     <PackageVersion Include="DotNetEnv" Version="3.1.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.4.0" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="9.4.2" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.4.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis" Version="2.6.0" />
     <PackageVersion Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" Version="2.6.0" />
-
     <!-- Observability -->
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.0" />
-
     <!-- Logging -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
-
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="coverlet.collector" Version="8.0.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
 </Project>
