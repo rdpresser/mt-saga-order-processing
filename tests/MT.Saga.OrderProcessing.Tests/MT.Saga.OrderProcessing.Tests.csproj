@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MT.Saga.OrderProcessing.Contracts\MT.Saga.OrderProcessing.Contracts.csproj" />
     <ProjectReference Include="..\..\src\MT.Saga.OrderProcessing.Infrastructure\MT.Saga.OrderProcessing.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Services\MT.Saga.OrderProcessing.OrderService\MT.Saga.OrderProcessing.OrderService.csproj" />
     <ProjectReference Include="..\..\src\MT.Saga.OrderProcessing.Saga\MT.Saga.OrderProcessing.Saga.csproj" />
   </ItemGroup>
 

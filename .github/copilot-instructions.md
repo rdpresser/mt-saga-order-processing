@@ -145,6 +145,324 @@ Rules:
 
 ---
 
+# Endpoint Style and Validation
+
+## Primary HTTP Approach
+
+For this repository, prefer **Minimal API + screaming architecture (feature-based organization)** for HTTP endpoints.
+
+Reasons:
+
+- Keeps focus on Saga orchestration and distributed workflow
+- Avoids unnecessary framework complexity for endpoint concerns
+- Makes the codebase intent-revealing: folder names reflect use cases, not layers
+- Keeps cognitive load low while preserving maintainability
+
+Use this pattern mainly in `OrderService` (entry-point context). Worker services should remain focused on messaging consumers.
+
+## Screaming Architecture — Feature Folders as Use Cases
+
+Organize by use case, not by technical layer. Each feature folder is a self-contained vertical slice.
+
+```text
+src/Services/MT.Saga.OrderProcessing.OrderService/
+└── Features/
+    └── Orders/
+        ├── CreateOrder/
+        │   ├── CreateOrderCommand.cs
+        │   ├── CreateOrderCommandValidator.cs
+        │   ├── CreateOrderResponse.cs
+        │   └── CreateOrderEndpoint.cs
+        └── GetOrderById/
+            ├── GetOrderByIdQuery.cs
+            ├── GetOrderByIdResponse.cs
+            └── GetOrderByIdEndpoint.cs
+```
+
+Rules:
+
+- Each feature folder represents one use case (not a technical role)
+- All files for a use case live together: endpoint, command/query, validator, response
+- Do not use flat `Endpoints/`, `Contracts/`, or `Validation/` root folders
+- Namespaces must reflect the folder path (e.g., `MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder`)
+
+## CQRS-Inspired Naming Conventions
+
+Use CQRS suffixes to communicate intent clearly.
+
+| HTTP Method     | File Suffix  | Example                          |
+| --------------- | ------------ | -------------------------------- |
+| POST/PUT/DELETE | `Command`    | `CreateOrderCommand.cs`          |
+| GET             | `Query`      | `GetOrderByIdQuery.cs`           |
+| All responses   | `Response`   | `CreateOrderResponse.cs`         |
+| All validators  | `*Validator` | `CreateOrderCommandValidator.cs` |
+| All endpoints   | `*Endpoint`  | `CreateOrderEndpoint.cs`         |
+
+Rules:
+
+- Never use the `Dto` suffix — use `Command`, `Query`, or `Response` instead
+- Commands and Queries are `sealed record` types
+- Response types are `sealed record` types
+- Validators are `sealed class` inheriting `AbstractValidator<T>`
+
+### Commands (POST/PUT/DELETE)
+
+```csharp
+public sealed record CreateOrderCommand(decimal Amount, string CustomerEmail);
+```
+
+### Queries (GET)
+
+```csharp
+public sealed record GetOrderByIdQuery(Guid OrderId);
+```
+
+### Responses (all verbs)
+
+```csharp
+public sealed record CreateOrderResponse(Guid OrderId);
+public sealed record GetOrderByIdResponse(Guid OrderId, string Status, decimal Amount);
+```
+
+## Validation Approach (No DataAnnotations)
+
+Keep command/query types clean — no DataAnnotation attributes. Use FluentValidation in dedicated validator classes.
+
+Guidelines:
+
+- Commands and Queries must be pure data records with no annotation attributes
+- Validators live in the same feature folder as the command/query they validate
+- Register validators via DI scanning and invoke inside endpoints
+- Return `Results.ValidationProblem(...)` for invalid input
+
+```csharp
+public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
+{
+    public CreateOrderCommandValidator()
+    {
+        RuleFor(x => x.Amount)
+            .GreaterThan(0)
+            .WithMessage("Amount must be greater than zero.");
+
+        RuleFor(x => x.CustomerEmail)
+            .NotEmpty()
+            .WithMessage("Customer email is required.")
+            .EmailAddress()
+            .WithMessage("Customer email must be a valid email address.");
+    }
+}
+```
+
+### Simple Validation Extension (for lightweight endpoints)
+
+For endpoints that do not use the full pipeline, use an `IValidator<T>` extension to keep validation inline and clean:
+
+```csharp
+public static class ValidationExtensions
+{
+    public static async Task<IResult?> ValidateAsync<T>(
+        this IValidator<T> validator,
+        T model,
+        CancellationToken ct = default)
+    {
+        var result = await validator.ValidateAsync(model, ct);
+        if (result.IsValid) return null;
+        return Results.ValidationProblem(result.ToDictionary());
+    }
+}
+```
+
+Usage in endpoint:
+
+```csharp
+var error = await validator.ValidateAsync(command, ct);
+if (error is not null) return error;
+```
+
+## Lightweight Endpoint Pipeline (MediatR-style, no MediatR)
+
+Use a **lightweight behavior pipeline** for endpoints that require cross-cutting concerns: validation, logging, caching (GET), and cache invalidation (POST/PUT/DELETE). This avoids adding MediatR while keeping full control over the execution flow.
+
+### Pipeline Rule
+
+```text
+Logging → Validation → [CachingBehavior | CacheInvalidationBehavior] → Handler
+```
+
+### Infrastructure Location
+
+```text
+OrderService/
+└── Pipeline/
+    ├── IEndpointBehavior.cs
+    ├── EndpointPipeline.cs
+    ├── ValidationBehavior.cs
+    ├── LoggingBehavior.cs
+    ├── CachingBehavior.cs
+    └── CacheInvalidationBehavior.cs
+└── Extensions/
+    └── ValidationExtensions.cs
+```
+
+### Behavior Interface
+
+```csharp
+public interface IEndpointBehavior<TRequest, TResponse>
+{
+    Task<TResponse> Handle(TRequest request, CancellationToken ct, Func<Task<TResponse>> next);
+}
+```
+
+### Pipeline Executor
+
+```csharp
+public sealed class EndpointPipeline<TRequest, TResponse>
+{
+    private readonly IEnumerable<IEndpointBehavior<TRequest, TResponse>> _behaviors;
+
+    public EndpointPipeline(IEnumerable<IEndpointBehavior<TRequest, TResponse>> behaviors)
+        => _behaviors = behaviors;
+
+    public Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct, Func<Task<TResponse>> handler)
+    {
+        Func<Task<TResponse>> next = handler;
+        foreach (var behavior in _behaviors.Reverse())
+        {
+            var current = next;
+            next = () => behavior.Handle(request, ct, current);
+        }
+        return next();
+    }
+}
+```
+
+### Behaviors
+
+**ValidationBehavior** — runs FluentValidation; throws `ValidationException` on failure (handled by global exception handler):
+
+```csharp
+public sealed class ValidationBehavior<TRequest, TResponse> : IEndpointBehavior<TRequest, TResponse>
+{
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+    // ...
+    public async Task<TResponse> Handle(TRequest request, CancellationToken ct, Func<Task<TResponse>> next)
+    {
+        var failures = _validators
+            .Select(v => v.Validate(new ValidationContext<TRequest>(request)))
+            .SelectMany(r => r.Errors)
+            .Where(f => f is not null)
+            .ToList();
+        if (failures.Count > 0) throw new ValidationException(failures);
+        return await next();
+    }
+}
+```
+
+**LoggingBehavior** — structured logging before and after handler:
+
+```csharp
+public sealed class LoggingBehavior<TRequest, TResponse> : IEndpointBehavior<TRequest, TResponse>
+{
+    // Logs "Handling {Request}" before and "Handled {Request}" after
+}
+```
+
+**CachingBehavior** — for GET queries (via `ICacheService` abstraction over FusionCache):
+
+```csharp
+public sealed class CachingBehavior<TRequest, TResponse> : IEndpointBehavior<TRequest, TResponse>
+{
+    // Uses ICacheService with key "{RequestType}:{hashCode}" and tags for later invalidation
+}
+```
+
+**CacheInvalidationBehavior** — for commands POST/PUT/DELETE (via `ICacheService` abstraction):
+
+```csharp
+public sealed class CacheInvalidationBehavior<TRequest, TResponse> : IEndpointBehavior<TRequest, TResponse>
+{
+    // Calls next(), then _cache.RemoveByTagAsync(tag)
+}
+```
+
+### DI Registration Rule
+
+Register common behaviors as open generics (applied to all endpoints). Register caching/invalidation as closed generics per specific request type:
+
+```csharp
+// Common — all endpoints
+services.AddScoped(typeof(IEndpointBehavior<,>), typeof(LoggingBehavior<,>));
+services.AddScoped(typeof(IEndpointBehavior<,>), typeof(ValidationBehavior<,>));
+
+// Per command (POST/PUT/DELETE) — cache invalidation
+services.AddScoped<IEndpointBehavior<CreateOrderCommand, IResult>,
+    CacheInvalidationBehavior<CreateOrderCommand, IResult>>();
+
+// Per query (GET) — caching
+// services.AddScoped<IEndpointBehavior<GetOrderByIdQuery, IResult>,
+//     CachingBehavior<GetOrderByIdQuery, IResult>>();
+
+// Pipeline executor
+services.AddScoped(typeof(EndpointPipeline<,>));
+
+// Shared cache abstraction registration
+services.AddOrderProcessingCaching(configuration);
+```
+
+### ValidationException Global Handler
+
+Register an `IExceptionHandler` to convert `ValidationException` to `ValidationProblem` HTTP response:
+
+```csharp
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddProblemDetails();
+app.UseExceptionHandler();
+```
+
+### Endpoint Usage (Command with Pipeline)
+
+```csharp
+app.MapPost("/orders", async (
+    CreateOrderCommand command,
+    EndpointPipeline<CreateOrderCommand, IResult> pipeline,
+    IPublishEndpoint publish,
+    CancellationToken ct) =>
+{
+    return await pipeline.ExecuteAsync(command, ct, async () =>
+    {
+        var orderId = Guid.NewGuid();
+        await publish.Publish(new OrderCreated(orderId), ct);
+        return Results.Ok(new CreateOrderResponse(orderId));
+    });
+});
+```
+
+### Adoption Rules
+
+- Use the full pipeline when the endpoint needs validation + logging + caching or cache invalidation
+- Use `ValidationExtensions` only for simple endpoints without pipeline
+- Commands (POST/PUT/DELETE): Logging + Validation + CacheInvalidation
+- Queries (GET): Logging + Validation + Caching
+- FusionCache is the preferred engine, but always inject `ICacheService` in app layers (never `IFusionCache` directly)
+- Keep cache tag constants per feature (for example, `CacheTags.Orders`)
+- `ValidationException` is always handled by the global exception handler, never inside endpoints
+
+## Interview Explanation for Endpoint Choices
+
+Use this explanation:
+
+> I chose Minimal APIs to keep the project simple and focused on the distributed workflow.
+>
+> I organize endpoints using screaming architecture — feature folders represent use cases, not layers.
+>
+> I use CQRS-inspired naming: Commands for write operations, Queries for reads, and Response for output types.
+>
+> I keep validation outside commands/queries using FluentValidation, co-located with each use case to avoid model pollution.
+>
+> For cross-cutting concerns, I implemented a lightweight MediatR-style pipeline without adding MediatR: validation, logging, query caching, and command cache invalidation. Caching uses a shared `ICacheService` abstraction (backed by FusionCache), which keeps the application layer clean and portable.
+
+---
+
 # Saga State Machine
 
 ## State Diagram
@@ -360,6 +678,23 @@ Rules for this source:
 - Use it as an additional reference for architecture, conventions, and implementation patterns.
 - Apply patterns only when they fit this repository's context and design goals.
 - If both sources differ, prioritize consistency with this repository's documented principles first.
+
+### Shared Extensions Baseline (tc-agro common)
+
+When building reusable infrastructure in this repository, inspect and reuse patterns from:
+
+- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\Caching`
+- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\Database`
+- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\MessageBroker`
+- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Extensions`
+
+Mandatory reuse principles:
+
+- Prefer service abstractions in app/service layers (e.g., `ICacheService`) and keep vendor libraries behind infrastructure adapters
+- Bind infrastructure options with `IOptions<T>` from appsettings sections (`Cache`, `Database`, `Messaging`)
+- Centralize infrastructure registrations in extension methods (for example `AddOrderProcessingCaching(...)`)
+- Keep helper methods cross-platform and dependency-minimal
+- Avoid duplicated plumbing in each service; place reusable extensions under infrastructure/shared modules
 
 ---
 
