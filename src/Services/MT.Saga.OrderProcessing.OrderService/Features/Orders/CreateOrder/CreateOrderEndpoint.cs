@@ -1,6 +1,8 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Events;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
+using System.Security.Claims;
 
 namespace MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 
@@ -12,18 +14,70 @@ public static class CreateOrderEndpoint
             CreateOrderCommand command,
             EndpointPipeline<CreateOrderCommand, IResult> pipeline,
             IPublishEndpoint publish,
+            MessagingResilienceOptions resilienceOptions,
+            ILoggerFactory loggerFactory,
+            HttpContext httpContext,
             CancellationToken ct) =>
         {
             return await pipeline.ExecuteAsync(command, ct, async () =>
             {
                 var orderId = Guid.NewGuid();
+                var logger = loggerFactory.CreateLogger("OrderPublish");
 
-                await publish.Publish(new OrderCreated(orderId), ct).ConfigureAwait(false);
+                var correlationId = ResolveCorrelationId(httpContext);
+                var userId = ResolveUserId(httpContext.User);
+                var isAuthenticated = httpContext.User.Identity?.IsAuthenticated ?? false;
+                var metadata = BuildHttpMetadata(httpContext);
+
+                var eventContext = EventContext.Create(
+                    sourceService: OrderMessagingTopology.SourceService,
+                    entity: OrderMessagingTopology.EntityName,
+                    action: OrderMessagingTopology.Actions.Created,
+                    payload: new OrderCreated(orderId),
+                    correlationId: correlationId,
+                    causationId: null,
+                    userId: userId,
+                    isAuthenticated: isAuthenticated,
+                    metadata: metadata);
+
+                await publish
+                    .PublishEventContextWithRetryAsync(eventContext, logger, resilienceOptions, ct)
+                    .ConfigureAwait(false);
 
                 return Results.Created($"/orders/{orderId}", new CreateOrderResponse(orderId));
             }).ConfigureAwait(false);
         })
         .WithName("CreateOrder")
         .WithTags("Orders");
+    }
+
+    private static string ResolveCorrelationId(HttpContext httpContext)
+    {
+        if (httpContext.Request.Headers.TryGetValue("x-correlation-id", out var headerCorrelation)
+            && !string.IsNullOrWhiteSpace(headerCorrelation))
+        {
+            return headerCorrelation.ToString();
+        }
+
+        return httpContext.TraceIdentifier;
+    }
+
+    private static string? ResolveUserId(ClaimsPrincipal user)
+    {
+        return user.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? user.FindFirstValue("sub")
+            ?? user.FindFirstValue("user_id");
+    }
+
+    private static IDictionary<string, object> BuildHttpMetadata(HttpContext httpContext)
+    {
+        return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["http-method"] = httpContext.Request.Method,
+            ["http-path"] = httpContext.Request.Path.ToString(),
+            ["trace-identifier"] = httpContext.TraceIdentifier,
+            ["remote-ip"] = httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty,
+            ["user-agent"] = httpContext.Request.Headers.UserAgent.ToString()
+        };
     }
 }

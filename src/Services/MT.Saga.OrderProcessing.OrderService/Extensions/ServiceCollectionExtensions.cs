@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
@@ -14,6 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddOpenApi();
         services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
         services.AddOrderProcessingCaching(configuration);
+        services.AddOrderSagaMassTransit(configuration);
 
         services.AddScoped(typeof(IEndpointBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddScoped(typeof(IEndpointBehavior<,>), typeof(ValidationBehavior<,>));

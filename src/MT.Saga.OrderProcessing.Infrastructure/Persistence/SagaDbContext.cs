@@ -8,6 +8,15 @@ namespace MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
 public class OrderSagaDbContext(DbContextOptions options) : SagaDbContext(options)
 {
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
+    }
+
     protected override IEnumerable<ISagaClassMap> Configurations
     {
         get { yield return new OrderStateMap(); }
