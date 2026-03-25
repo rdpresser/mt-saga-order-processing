@@ -30,16 +30,19 @@
 **Definition**: A message is a contract (record, class, or interface) that flows through the bus.
 
 **Rules**:
+
 - Use `records` with `{ get; init; }` accessors (immutable, recommended)
 - Message type names must be fully qualified (namespace + type)
 - Two projects must use the exact same namespace/name for a message to be recognized
 - Messages should contain **state only**, no behavior
 
 **Types**:
+
 - **Commands** (verbs): `SubmitOrder`, `UpdateCustomer` → sent to specific queue
 - **Events** (past tense): `OrderSubmitted`, `CustomerUpdated` → published to all subscribers
 
 **Message Names Example**:
+
 ```csharp
 // Command - verb/noun, imperative
 public record SubmitOrder
@@ -57,6 +60,7 @@ public record OrderSubmitted
 ```
 
 **Message Headers** (automatically managed):
+
 - `MessageId`: Unique per message (NewId)
 - `CorrelationId`: Links messages in a conversation
 - `RequestId`: For request/response patterns
@@ -67,6 +71,7 @@ public record OrderSubmitted
 - `SentTime`: When sent (UTC)
 
 **Correlation**: Messages are grouped by `CorrelationId` (either explicit or by convention):
+
 ```csharp
 // Convention examples (auto-detected):
 // 1. CorrelatedBy<Guid> interface
@@ -84,6 +89,7 @@ GlobalTopology.Send.UseCorrelationId<SubmitOrder>(x => x.OrderId);
 **Definition**: A consumer implements `IConsumer<T>` and handles one message type.
 
 **Interface**:
+
 ```csharp
 public interface IConsumer<in TMessage> : IConsumer
     where TMessage : class
@@ -93,6 +99,7 @@ public interface IConsumer<in TMessage> : IConsumer
 ```
 
 **Basic Consumer**:
+
 ```csharp
 public sealed class SubmitOrderConsumer : IConsumer<SubmitOrder>
 {
@@ -125,6 +132,7 @@ public sealed class SubmitOrderConsumer : IConsumer<SubmitOrder>
 ```
 
 **Consumer Definition** (optional, for configuration):
+
 ```csharp
 public sealed class SubmitOrderConsumerDefinition : ConsumerDefinition<SubmitOrderConsumer>
 {
@@ -145,6 +153,7 @@ public sealed class SubmitOrderConsumerDefinition : ConsumerDefinition<SubmitOrd
 ```
 
 **Batch Consumer** (for bulk processing):
+
 ```csharp
 public sealed class OrderAuditBatchConsumer : IConsumer<Batch<OrderSubmitted>>
 {
@@ -178,11 +187,13 @@ public sealed class OrderAuditBatchConsumer : IConsumer<Batch<OrderSubmitted>>
 **Definition**: Delivers a message to a **specific endpoint/queue** (one-to-one).
 
 **Key Points**:
+
 - Obtain endpoint from `ConsumeContext` (consumer), `ISendEndpointProvider`, or `IBus`
 - Prefer closest scope (ConsumeContext > ISendEndpointProvider > IBus)
 - Always use async: `GetSendEndpoint`, then `Send`
 
 **Example**:
+
 ```csharp
 public sealed class PaymentProcessor
 {
@@ -210,6 +221,7 @@ public sealed class PaymentProcessor
 ```
 
 **Short Addresses** (RabbitMQ):
+
 - `queue:queue-name`
 - `exchange:exchange-name`
 - `topic:topic-name`
@@ -219,11 +231,13 @@ public sealed class PaymentProcessor
 **Definition**: Broadcasts a message to **all subscribers** (one-to-many).
 
 **Key Points**:
+
 - Used for events (past tense)
 - Obtain from `ConsumeContext` (preferred), `IPublishEndpoint`, or `IBus`
 - Automatic topology creation for subscribers
 
 **Example**:
+
 ```csharp
 public sealed class OrderConsumer : IConsumer<SubmitOrder>
 {
@@ -248,11 +262,13 @@ public sealed class OrderConsumer : IConsumer<SubmitOrder>
 ### State Machine Sagas (Recommended)
 
 **Definition**: A saga is a long-lived, stateful orchestrator that:
+
 1. Initiates from an event
 2. Manages state across multiple events
 3. Orchestrates compensation on failure
 
 **Core Components**:
+
 ```csharp
 // State (persistent data)
 public sealed class OrderState : SagaStateMachineInstance
@@ -314,6 +330,7 @@ public sealed class OrderStateMachine : MassTransitStateMachine<OrderState>
 **Key Patterns**:
 
 1. **Initiating Events** (Initial state):
+
    ```csharp
    Initially(
        When(SubmitOrder)
@@ -323,6 +340,7 @@ public sealed class OrderStateMachine : MassTransitStateMachine<OrderState>
    ```
 
 2. **Handling Events** (During specific states):
+
    ```csharp
    During(Submitted,
        When(OrderAccepted)
@@ -332,6 +350,7 @@ public sealed class OrderStateMachine : MassTransitStateMachine<OrderState>
    ```
 
 3. **Missing Instance Handling**:
+
    ```csharp
    Event(() => OrderCancellationRequested, e =>
    {
@@ -343,6 +362,7 @@ public sealed class OrderStateMachine : MassTransitStateMachine<OrderState>
    ```
 
 4. **Saga Completion**:
+
    ```csharp
    DuringAny(
        When(OrderCompleted)
@@ -355,6 +375,7 @@ public sealed class OrderStateMachine : MassTransitStateMachine<OrderState>
 ### Saga Configuration
 
 **Registration**:
+
 ```csharp
 services.AddMassTransit(x =>
 {
@@ -383,6 +404,7 @@ services.AddMassTransit(x =>
 **Routing Slip**: A message that flows through a series of **activities**, each performing work and optionally compensating on failure.
 
 **Activity Interface**:
+
 ```csharp
 // Compensating activity (supports undo)
 public interface IActivity<TArguments, TLog>
@@ -399,6 +421,7 @@ public interface IExecuteActivity<TArguments>
 ```
 
 **Activity Implementation**:
+
 ```csharp
 public sealed class DownloadImageActivity : IActivity<DownloadImageArguments, DownloadImageLog>
 {
@@ -429,6 +452,7 @@ public sealed class DownloadImageActivity : IActivity<DownloadImageArguments, Do
 ```
 
 **Building a Routing Slip**:
+
 ```csharp
 var builder = new RoutingSlipBuilder(NewId.NextGuid());
 
@@ -459,6 +483,7 @@ await bus.Execute(routingSlip);
 **Topology**: How message types map to broker entities (exchanges/topics, queues, bindings).
 
 **Three Topologies**:
+
 1. **Send Topology**: Routes commands to specific queues
 2. **Publish Topology**: Maps events to exchanges/topics
 3. **Consume Topology**: Subscribes queues to exchanges/topics
@@ -483,6 +508,7 @@ public interface IEvent { }
 ### Explicit Configuration
 
 **RabbitMQ Exchanges**:
+
 ```csharp
 x.UsingRabbitMq((context, cfg) =>
 {
@@ -531,6 +557,7 @@ GlobalTopology.Send.UseRoutingKeyFormatter<IHasRoutingKey>(x => x.RoutingKey.ToS
 ### Retry Policies
 
 **Available Policies**:
+
 - `Immediate(count)`: Retry immediately, N times
 - `Interval(count, interval)`: Retry after fixed delay
 - `Intervals(params)`: Retry after custom delays each time
@@ -538,6 +565,7 @@ GlobalTopology.Send.UseRoutingKeyFormatter<IHasRoutingKey>(x => x.RoutingKey.ToS
 - `Incremental(retries, min, delta)`: Linear increasing delays
 
 **Example**:
+
 ```csharp
 services.AddMassTransit(x =>
 {
@@ -634,18 +662,21 @@ public sealed class OrderFaultConsumer : IConsumer<Fault<SubmitOrder>>
 **Default Prefetch**: `64` per transport specification
 
 **Key Rationales**:
+
 - **Higher prefetch**: Better throughput but requires more memory and increases in-flight messages
 - **Lower prefetch**: Lower latency per message but reduces throughput
 - **Database workload**: If database is the bottleneck, lower prefetch (e.g., 16-32) limits concurrent DB operations
 - **Network latency**: High-latency networks benefit from higher prefetch
 
 **Recommendation**:
+
 - Start with **default (64)**
 - Lower only if database/resource bottleneck exists
 - Per-message processing latency should not drive prefetch down
 - Use **ConcurrentMessageLimit** (consumer level) for fine-grained control
 
 **Configuration**:
+
 ```csharp
 x.UsingRabbitMq((context, cfg) =>
 {
@@ -660,12 +691,14 @@ x.UsingRabbitMq((context, cfg) =>
 ### Exchanges & Routing
 
 **Exchange Types**:
+
 - `fanout`: All messages to all bound queues
 - `direct`: Routing key must match exactly
 - `topic`: Routing key pattern matching (`order.*`, `*.shipped`)
 - `headers`: Route by message headers
 
 **Topology in RabbitMQ**:
+
 - Publishing: Sends to **exchange** matching message type
 - Consuming: **Queue** binds to exchange with routing key
 - MassTransit creates exchanges and bindings automatically
@@ -706,6 +739,7 @@ cfg.UsingRabbitMq((context, cbfg) =>
 ### Saga State in PostgreSQL
 
 **Configuration**:
+
 ```csharp
 services.AddMassTransit(x =>
 {
@@ -729,6 +763,7 @@ services.AddMassTransit(x =>
 ```
 
 **PostgreSQL Optimistic Concurrency** (using `xmin` system column):
+
 ```csharp
 public sealed class OrderState : SagaStateMachineInstance
 {
@@ -771,6 +806,7 @@ services.AddMassTransit(x =>
 ```
 
 Benefits:
+
 - Outbox messages persisted with business data in same transaction
 - Messages sent reliably only after consumer completes
 - Prevents duplicate publishes on retry
@@ -882,6 +918,7 @@ services.AddMassTransit(x =>
 **Default Prefetch**: `64` messages per RabbitMQ specification
 
 **What It Means**:
+
 - Consumer requests 64 messages from queue
 - Consumer processes one at a time
 - After each success, consumer requests 1 more to maintain 64 in-flight
@@ -889,17 +926,18 @@ services.AddMassTransit(x =>
 
 **When to Adjust**:
 
-| Scenario | Prefetch | Reason |
-|----------|----------|--------|
-| Default (balanced) | 64 | MassTransit default |
-| Database bottleneck | 16-32 | Limits concurrent DB ops |
-| Memory constrained | 16-32 | Reduces memory footprint |
-| High-throughput, light processing | 128+ | Maximize throughput (if infra supports) |
-| High-latency network | 128+ | Tolerate network delays |
+| Scenario                          | Prefetch | Reason                                  |
+| --------------------------------- | -------- | --------------------------------------- |
+| Default (balanced)                | 64       | MassTransit default                     |
+| Database bottleneck               | 16-32    | Limits concurrent DB ops                |
+| Memory constrained                | 16-32    | Reduces memory footprint                |
+| High-throughput, light processing | 128+     | Maximize throughput (if infra supports) |
+| High-latency network              | 128+     | Tolerate network delays                 |
 
 **Important**: Prefetch controls **broker-side buffering**. Use `ConcurrentMessageLimit` for app-side concurrency control.
 
 **Configuration Guidance**:
+
 ```csharp
 cfg.ReceiveEndpoint("order-queue", e =>
 {
@@ -914,6 +952,7 @@ cfg.ReceiveEndpoint("order-queue", e =>
 ```
 
 **Anti-Pattern**:
+
 ```csharp
 // ❌ Don't lower prefetch just to "go slower"
 e.PrefetchCount = 4;  // Hurts throughput unnecessarily

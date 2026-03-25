@@ -62,7 +62,7 @@ public static class CommonMassTransitPoliciesConfiguration
     /// <summary>
     /// Applies common resilience policies to a receive endpoint.
     /// Must be called for each receive endpoint to ensure consistency.
-    /// 
+    ///
     /// Policies applied:
     /// - Retry (exponential backoff)
     /// - Kill switch (protects system under sustained failures)

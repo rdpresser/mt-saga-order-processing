@@ -22,6 +22,7 @@
 ### ✅ Code Structure (Configuration Directory)
 
 Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
+
 - `CommonMassTransitPoliciesConfiguration.cs` - Centralized resilience policies (prefetch, retry, kill switch, outbox)
 - `OrderSagaConfiguration.cs` - Explicit saga state machine + endpoint setup
 - `WorkerServiceConsumersConfiguration.cs` - Pattern for explicit consumer registration
@@ -147,7 +148,7 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 ✅ **Documented** - XML docs on every public method; configuration sections explained  
 ✅ **Chainable** - Fluent API for consumer registration (`.AddPaymentServiceConsumers().AddInventoryServiceConsumers()`)  
 ✅ **Testable** - No static state; all config passed via DI  
-✅ **Future-Ready** - Easy to add new services: create new extension method in `WorkerServiceConsumerExtensions`  
+✅ **Future-Ready** - Easy to add new services: create new extension method in `WorkerServiceConsumerExtensions`
 
 ---
 

@@ -18,7 +18,7 @@ public static class DatabaseContextExtensions
     /// 1. ConnectionStrings:saga-db
     /// 2. ConnectionStrings:postgres
     /// 3. Database:Postgres section configuration
-    /// 
+    ///
     /// Also registers database options and connection factory.
     /// </summary>
     public static IServiceCollection AddOrderProcessingDbContext(
@@ -64,31 +64,3 @@ public static class MassTransitPoliciesExtensions
     }
 }
 
-/// <summary>
-/// RabbitMQ configuration helper for building connection options from appsettings.
-/// </summary>
-internal static class RabbitMqHelper
-{
-    public static RabbitMqOptions Build(IConfiguration configuration)
-    {
-        var section = configuration.GetSection("Messaging:RabbitMq");
-
-        return new RabbitMqOptions
-        {
-            Host = section["Host"] ?? "localhost",
-            Port = int.TryParse(section["Port"], out var port) ? port : 5672,
-            UserName = section["UserName"] ?? "guest",
-            Password = section["Password"] ?? "guest",
-            VirtualHost = section["VirtualHost"] ?? "/"
-        };
-    }
-
-    public class RabbitMqOptions
-    {
-        public string Host { get; set; } = "localhost";
-        public int Port { get; set; } = 5672;
-        public string UserName { get; set; } = "guest";
-        public string Password { get; set; } = "guest";
-        public string VirtualHost { get; set; } = "/";
-    }
-}

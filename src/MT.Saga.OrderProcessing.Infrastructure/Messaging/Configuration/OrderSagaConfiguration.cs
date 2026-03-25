@@ -16,7 +16,7 @@ public static class OrderSagaConfiguration
 {
     /// <summary>
     /// Registers the order saga state machine with durable persistence.
-    /// 
+    ///
     /// Configuration details:
     /// - Storage: PostgreSQL via Entity Framework Core
     /// - Concurrency: Optimistic (uses xmin column for row versioning)

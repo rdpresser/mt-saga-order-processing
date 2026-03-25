@@ -7,7 +7,7 @@ namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 /// Replaces reflection-based AddConsumer(Type) discovery.
 /// Each service defines its consumers explicitly and clearly.
 /// </summary>
-/// 
+///
 /// <summary>
 /// Payment service consumers (explicit, no reflection).
 /// Located in: MT.Saga.OrderProcessing.PaymentService

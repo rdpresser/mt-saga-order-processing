@@ -137,7 +137,7 @@ public static class SagaOrchestrationMassTransitExtensions
     /// <summary>
     /// Registers worker service MassTransit components.
     /// Explicit consumer registration (no reflection).
-    /// 
+    ///
     /// Usage in worker service Program.cs:
     ///     services.AddWorkerServiceMassTransit(configuration);
     ///     // Then in the same scope or in Program.cs:

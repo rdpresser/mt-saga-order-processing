@@ -3,16 +3,6 @@ using Shouldly;
 
 namespace MT.Saga.OrderProcessing.Tests.E2E;
 
-/// <summary>
-/// End-to-end tests for complete Saga orchestration flow.
-/// 
-/// NOTE: These tests are currently SKIPPED due to a pre-existing fixture initialization issue
-/// where the Order Service health check times out during test harness startup.
-/// This is unrelated to the MassTransit configuration refactoring.
-/// 
-/// Tracking: Separate ticket to investigate testcontainers health check timeout in fixture.
-/// Likely requires investigation of WebApplicationFactory health check endpoint availability.
-/// </summary>
 [Collection(nameof(FullSagaE2ETestCollection))]
 public sealed class FullSagaE2ETests
 {
@@ -23,7 +13,7 @@ public sealed class FullSagaE2ETests
         _fixture = fixture;
     }
 
-    [Fact(Skip = "Pre-existing fixture issue: Order Service health check times out. Unrelated to MassTransit refactoring.")]
+    [Fact]
     public async Task Should_complete_happy_path_with_confirmed_event_and_finalized_saga()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -35,7 +25,7 @@ public sealed class FullSagaE2ETests
         finalized.ShouldBeTrue();
     }
 
-    [Fact(Skip = "Pre-existing fixture issue: Order Service health check times out. Unrelated to MassTransit refactoring.")]
+    [Fact]
     public async Task Should_complete_sad_path_with_cancellation_and_compensation_when_inventory_fails()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -69,7 +59,7 @@ public sealed class FullSagaE2ETests
         }
     }
 
-    [Fact(Skip = "Pre-existing fixture issue: Order Service health check times out. Unrelated to MassTransit refactoring.")]
+    [Fact]
     public async Task Should_handle_edge_case_with_two_orders_in_sequence_without_cross_contamination()
     {
         var ct = TestContext.Current.CancellationToken;

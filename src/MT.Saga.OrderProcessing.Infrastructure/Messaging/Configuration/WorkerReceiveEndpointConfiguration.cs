@@ -85,7 +85,7 @@ public static class WorkerReceiveEndpointConfiguration
 /// <summary>
 /// Extension methods for registering worker service consumers explicitly.
 /// Replaces reflection-based consumer discovery in AddWorkerMassTransit.
-/// 
+///
 /// Usage in worker service Program.cs:
 ///     services.AddWorkerServiceMassTransit(configuration, connectionString)
 ///         .AddPaymentServiceConsumers()

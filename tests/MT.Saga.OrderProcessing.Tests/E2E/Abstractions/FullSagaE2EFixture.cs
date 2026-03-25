@@ -315,7 +315,7 @@ WHERE ""Body"" ILIKE @orderIdMatch
                 {
                     return;
                 }
-                
+
                 Console.WriteLine($"Health check returned: {response.StatusCode}");
             }
             catch (Exception ex)
