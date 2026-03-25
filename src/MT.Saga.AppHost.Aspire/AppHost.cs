@@ -61,6 +61,7 @@ public static class Program
             .WaitFor(redis)
             .WaitFor(rabbitMq)
             .WaitFor(sagaDatabase)
+            .WithHttpHealthCheck("/health")
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", builder.Environment.EnvironmentName)
             .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
             .WithEnvironment("Cache__Redis__Host", redisOptions.Host)
