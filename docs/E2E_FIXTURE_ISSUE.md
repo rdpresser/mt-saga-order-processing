@@ -18,7 +18,7 @@ WaitForOrderServiceReadinessAsync() → OrderClient.GetAsync("/health") → No r
 ## Environment
 
 - WebApplicationFactory creates OrderService test app
-- Testcontainers: PostgreSQL, RabbitMQ, Redis all starting correctly  
+- Testcontainers: PostgreSQL, RabbitMQ, Redis all starting correctly
 - Settings passed to factory via AddInMemoryCollection()
 - Factory environment set to "Test" to skip Program.cs migrations
 - Health endpoint mapped unconditionally in MapDefaultEndpoints()
@@ -30,9 +30,9 @@ WaitForOrderServiceReadinessAsync() → OrderClient.GetAsync("/health") → No r
 ✅ Unit tests: 47/47 passing  
 ✅ Migrations moved out of Program.cs (run once in fixture)  
 ✅ Program.cs does NOT call RunAsync() when env="Test"  
-✅ Testcontainers start successfully (PostgreSQL, RabbitMQ, Redis)  
+✅ Testcontainers start successfully (PostgreSQL, RabbitMQ, Redis)
 
-## Likely Root Causes 
+## Likely Root Causes
 
 1. **WebApplicationFactory + MassTransit initialization** - App might be failing silently during dependency injection setup (MassTransit configuration, RabbitMQ connection, etc.)
 2. **Testcontainer networking** - Container ports may not be accessible to test app in expected way
@@ -44,18 +44,21 @@ WaitForOrderServiceReadinessAsync() → OrderClient.GetAsync("/health") → No r
 Would require:
 
 1. Add detailed logging to fixture setup:
+
    ```csharp
    // Log each stage of fixture initialization
    // Try/catch the health check attempts with better diagnostics
    ```
 
 2. Verify app actually starts:
+
    ```csharp
    // Create simple GET endpoint that doesn't depend on MassTransit
    // Test if ANY endpoint responds
    ```
 
 3. Check MassTransit/RabbitMQ initialization:
+
    ```csharp
    // Verify RabbitMQ connectivity from test app
    // Check if MassTransit bus is throwing during configuration

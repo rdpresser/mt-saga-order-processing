@@ -162,13 +162,14 @@ Infrastructure/Messaging/
 **Problem**:
 
 - EventContext construction repeated 5+ times in state machine
-- 10-line boilerplate per Send/Publish call  
+- 10-line boilerplate per Send/Publish call
 - Perceived indirection vs actual metadata value not clearly understood
 - Not idiomatic MassTransit (uses direct contracts)
 
 **Decision: KEEP EventContext<T>**
 
 Raw Event<OrderCreated> and Event<EventContext<OrderCreated>> decision: EventContext provides:
+
 - Metadata envelope for source service, entity, action type
 - Foundation for future cross-domain integration
 - Correlation & audit trail data

@@ -83,10 +83,10 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         // Create a temporary DbContext just for running migrations
         // Use the connection string built from testcontainer settings
         var connectionString = BuildDatabaseConnectionString();
-        
+
         var optionsBuilder = new DbContextOptionsBuilder<OrderSagaDbContext>();
         optionsBuilder.UseNpgsql(connectionString);
-        
+
         await using var context = new OrderSagaDbContext(optionsBuilder.Options);
         await context.Database.MigrateAsync(ct);
     }
@@ -336,7 +336,7 @@ WHERE ""Body"" ILIKE @orderIdMatch
                     Console.WriteLine($"✓ Health check passed after {attempts} attempts");
                     return;
                 }
-                
+
                 Console.WriteLine($"Attempt {attempts}: Health check returned {response.StatusCode}");
             }
             catch (HttpRequestException ex)

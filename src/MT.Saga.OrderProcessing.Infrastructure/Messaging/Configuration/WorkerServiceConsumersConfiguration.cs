@@ -18,7 +18,7 @@ public static class PaymentServiceConsumersConfiguration
     /// Registers payment service consumers.
     /// - ProcessPaymentConsumer: Handles ProcessPayment command
     /// - RefundPaymentConsumer: Handles RefundPayment command
-    /// 
+    ///
     /// Usage in PaymentService Program.cs:
     ///     var cfg = new RegistrationConfigurator();
     ///     cfg.AddPaymentServiceConsumers();
@@ -30,7 +30,7 @@ public static class PaymentServiceConsumersConfiguration
         // NOTE: Consumers from PaymentService are registered explicitly in PaymentService.Program.cs
         // This method is a placeholder for the pattern where service-specific consumers are
         // registered via explicit IRegistrationConfigurator calls (no reflection)
-        
+
         return cfg;
     }
 }
