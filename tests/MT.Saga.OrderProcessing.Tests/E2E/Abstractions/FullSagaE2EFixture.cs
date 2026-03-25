@@ -321,31 +321,43 @@ WHERE ""Body"" ILIKE @orderIdMatch
 
     private async Task WaitForOrderServiceReadinessAsync(CancellationToken cancellationToken)
     {
-        var timeout = TimeSpan.FromSeconds(60);  // Increased from 30 to 60 seconds
+        var timeout = TimeSpan.FromSeconds(60);
         var started = DateTimeOffset.UtcNow;
+        var attempts = 0;
 
         while (DateTimeOffset.UtcNow - started < timeout)
         {
+            attempts++;
             try
             {
                 var response = await OrderClient.GetAsync("/health", cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
+                    Console.WriteLine($"✓ Health check passed after {attempts} attempts");
                     return;
                 }
-
-                Console.WriteLine($"Health check returned: {response.StatusCode}");
+                
+                Console.WriteLine($"Attempt {attempts}: Health check returned {response.StatusCode}");
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Attempt {attempts}: Connection error: {ex.Message}");
+            }
+            catch (OperationCanceledException ex)
+            {
+                Console.WriteLine($"Attempt {attempts}: Request cancelled: {ex.Message}");
             }
             catch (Exception ex)
             {
-                // Ignore transient startup errors while app initializes.
-                Console.WriteLine($"Health check error: {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine($"Attempt {attempts}: Unexpected error - {ex.GetType().Name}: {ex.Message}");
             }
 
             await Task.Delay(500, cancellationToken);
         }
 
-        throw new InvalidOperationException("Order Service did not become healthy within the expected timeout.");
+        var elapsed = DateTimeOffset.UtcNow - started;
+        throw new InvalidOperationException(
+            $"Order Service did not become healthy within {timeout.TotalSeconds:F0} seconds (tried {attempts} times, elapsed {elapsed.TotalSeconds:F2}s).");
     }
 
     private void BuildSettings()
