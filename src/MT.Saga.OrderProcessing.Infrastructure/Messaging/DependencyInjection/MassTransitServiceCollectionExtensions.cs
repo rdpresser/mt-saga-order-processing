@@ -1,5 +1,6 @@
 using MassTransit;
 using MassTransit.RabbitMqTransport;
+using System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -88,11 +89,61 @@ public static class MassTransitServiceCollectionExtensions
                 cfg.ConnectConsumeObserver(context.GetRequiredService<LoggingConsumeObserver>());
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
                 ConfigureOrderTopicPublishing(cfg);
-                cfg.ConfigureEndpoints(context);
+
+                foreach (var consumerType in consumerTypes)
+                {
+                    cfg.ReceiveEndpoint(ResolveWorkerEndpointName(consumerType), endpoint =>
+                    {
+                        ConfigureCommonReceiveEndpointPolicies(context, endpoint, configuration);
+                        endpoint.ConfigureConsumer(context, consumerType);
+                    });
+                }
             });
         });
 
         return services;
+    }
+
+    private static string ResolveWorkerEndpointName(Type consumerType)
+    {
+        return consumerType.Name switch
+        {
+            "ProcessPaymentConsumer" => "process-payment",
+            "ReserveInventoryConsumer" => "reserve-inventory",
+            "RefundPaymentConsumer" => "refund-payment",
+            _ => ToKebabCase(consumerType.Name.EndsWith("Consumer", StringComparison.Ordinal)
+                ? consumerType.Name[..^"Consumer".Length]
+                : consumerType.Name)
+        };
+    }
+
+    private static string ToKebabCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var chars = new List<char>(value.Length + 8);
+        for (var i = 0; i < value.Length; i++)
+        {
+            var current = value[i];
+            if (char.IsUpper(current))
+            {
+                if (i > 0)
+                {
+                    chars.Add('-');
+                }
+
+                chars.Add(char.ToLowerInvariant(current));
+            }
+            else
+            {
+                chars.Add(current);
+            }
+        }
+
+        return new string(chars.ToArray());
     }
 
     private static void ConfigureCommonReceiveEndpointPolicies(
@@ -198,14 +249,15 @@ public static class MassTransitServiceCollectionExtensions
         var genericMethod = typeof(MassTransitServiceCollectionExtensions)
             .GetMethod(
                 nameof(ConfigureTopicMessageTopologyGeneric),
-                BindingFlags.NonPublic | BindingFlags.Static)
+                BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException("Could not locate topic topology configuration method.");
 
         var closedMethod = genericMethod.MakeGenericMethod(payloadType);
         closedMethod.Invoke(null, [cfg, exchangeName]);
     }
 
-    private static void ConfigureTopicMessageTopologyGeneric<TPayload>(IRabbitMqBusFactoryConfigurator cfg, string exchangeName)
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void ConfigureTopicMessageTopologyGeneric<TPayload>(IRabbitMqBusFactoryConfigurator cfg, string exchangeName)
         where TPayload : class
     {
         cfg.Message<EventContext<TPayload>>(x => x.SetEntityName(exchangeName));

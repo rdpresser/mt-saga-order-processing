@@ -1,4 +1,10 @@
 <Project>
+  <PropertyGroup>
+    <!-- Keep analyzer transitive conflicts from failing CI when TreatWarningsAsErrors=true -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1608</WarningsNotAsErrors>
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+  </PropertyGroup>
+
   <Target Name="FailIfPackageReferenceHasVersion"
           BeforeTargets="CollectPackageReferences"
           Condition="'$(ManagePackageVersionsCentrally)' == 'true'">

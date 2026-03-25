@@ -1,7 +1,3 @@
-using MT.Saga.OrderProcessing.OrderService.Extensions;
-using MT.Saga.OrderProcessing.Infrastructure.Persistence;
-using MT.Saga.OrderProcessing.Infrastructure.Persistence.EfCore;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
@@ -15,4 +11,3 @@ app.UseOrderService();
 app.MapDefaultEndpoints();
 
 await app.RunAsync().ConfigureAwait(false);
-

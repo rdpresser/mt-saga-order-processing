@@ -1,7 +1,9 @@
 using MassTransit;
+using Microsoft.AspNetCore.Http;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
+using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
 
 namespace MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
@@ -48,7 +50,14 @@ public static class CreateOrderEndpoint
             }).ConfigureAwait(false);
         })
         .WithName("CreateOrder")
-        .WithTags("Orders");
+        .WithTags("Orders")
+        .Accepts<CreateOrderCommand>("application/json")
+        .Produces<CreateOrderResponse>(StatusCodes.Status201Created)
+        .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status500InternalServerError)
+        .WithMetadata(new SwaggerOperationAttribute(
+            summary: "Create a new order",
+            description: "Starts the Saga orchestration by publishing an OrderCreated event in EventContext envelope."));
     }
 
     private static string ResolveCorrelationId(HttpContext httpContext)

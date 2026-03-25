@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
+using Microsoft.OpenApi;
+using System.Reflection;
 using MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
@@ -12,7 +14,28 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddOrderService(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOpenApi();
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "MT.Saga Order Service API",
+                Version = "v1",
+                Description = "Order entry-point API for the Saga orchestration flow."
+            });
+
+            options.EnableAnnotations();
+            options.SupportNonNullableReferenceTypes();
+            options.CustomSchemaIds(type => type.FullName?.Replace('+', '.') ?? type.Name);
+
+            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+            }
+        });
+
         services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
         services.AddOrderProcessingCaching(configuration);
         services.AddOrderSagaMassTransit(configuration);

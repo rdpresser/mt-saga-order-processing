@@ -1,6 +1,7 @@
 using MassTransit;
 using MassTransit.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
@@ -16,6 +17,7 @@ public class OrderStateMachineTests
     [Fact]
     public async Task Should_confirm_order_when_payment_and_inventory_succeed()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: false);
         var harness = provider.GetRequiredService<ITestHarness>();
 
@@ -29,22 +31,23 @@ public class OrderStateMachineTests
                 sourceService: "orders",
                 entity: "order",
                 action: "created",
-                payload: new OrderCreated(orderId))).ConfigureAwait(true);
+                payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
-            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
-            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
         }
         finally
         {
-            await harness.Stop().ConfigureAwait(true);
+            await harness.Stop(ct).ConfigureAwait(true);
         }
     }
 
     [Fact]
     public async Task Should_compensate_when_inventory_fails_after_payment_success()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: true);
         var harness = provider.GetRequiredService<ITestHarness>();
 
@@ -58,24 +61,25 @@ public class OrderStateMachineTests
                 sourceService: "orders",
                 entity: "order",
                 action: "created",
-                payload: new OrderCreated(orderId))).ConfigureAwait(true);
+                payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
-            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
 
             var refundHarness = harness.GetConsumerHarness<RefundPaymentConsumer>();
-            (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
         }
         finally
         {
-            await harness.Stop().ConfigureAwait(true);
+            await harness.Stop(ct).ConfigureAwait(true);
         }
     }
 
     [Fact]
     public async Task Should_cancel_order_when_payment_fails_immediately()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: false, useFailingPaymentConsumer: true);
         var harness = provider.GetRequiredService<ITestHarness>();
 
@@ -89,30 +93,31 @@ public class OrderStateMachineTests
                 sourceService: "orders",
                 entity: "order",
                 action: "created",
-                payload: new OrderCreated(orderId))).ConfigureAwait(true);
+                payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
-            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
-            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
 
             var inventoryHarness = harness.GetConsumerHarness<ReserveInventoryConsumer>();
-            (await inventoryHarness.Consumed.Any<EventContext<ReserveInventory>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await inventoryHarness.Consumed.Any<EventContext<ReserveInventory>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
 
             var refundHarness = harness.GetConsumerHarness<RefundPaymentConsumer>();
-            (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
         }
         finally
         {
-            await harness.Stop().ConfigureAwait(true);
+            await harness.Stop(ct).ConfigureAwait(true);
         }
     }
 
     [Fact]
     public async Task Should_ignore_inventory_event_without_existing_saga_instance()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: false);
         var harness = provider.GetRequiredService<ITestHarness>();
 
@@ -126,16 +131,16 @@ public class OrderStateMachineTests
                 sourceService: "orders",
                 entity: "order",
                 action: "inventory-reserved",
-                payload: new InventoryReserved(orderId))).ConfigureAwait(true);
+                payload: new InventoryReserved(orderId)), ct).ConfigureAwait(true);
 
-            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
-            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId).ConfigureAwait(true))
+            (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
         }
         finally
         {
-            await harness.Stop().ConfigureAwait(true);
+            await harness.Stop(ct).ConfigureAwait(true);
         }
     }
 
@@ -209,6 +214,7 @@ public class OrderStateMachineTests
 
     private sealed class FailingProcessPaymentConsumerDefinition : ConsumerDefinition<FailingProcessPaymentConsumer>
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public FailingProcessPaymentConsumerDefinition()
         {
             EndpointName = "process-payment";
@@ -217,6 +223,7 @@ public class OrderStateMachineTests
 
     private sealed class ProcessPaymentConsumerTestDefinition : ConsumerDefinition<ProcessPaymentConsumer>
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public ProcessPaymentConsumerTestDefinition()
         {
             EndpointName = "process-payment";
@@ -225,6 +232,7 @@ public class OrderStateMachineTests
 
     private sealed class ReserveInventoryConsumerTestDefinition : ConsumerDefinition<ReserveInventoryConsumer>
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public ReserveInventoryConsumerTestDefinition()
         {
             EndpointName = "reserve-inventory";
@@ -233,6 +241,7 @@ public class OrderStateMachineTests
 
     private sealed class FailingReserveInventoryConsumerDefinition : ConsumerDefinition<FailingReserveInventoryConsumer>
     {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public FailingReserveInventoryConsumerDefinition()
         {
             EndpointName = "reserve-inventory";

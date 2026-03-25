@@ -62,7 +62,9 @@ public static class EventContextPublishExtensions
                     attempts,
                     typeof(TPayload).Name,
                     routingKey);
-                throw;
+                throw new InvalidOperationException(
+                    $"Failed to publish event context for '{typeof(TPayload).Name}' after {attempts} attempts using routing key '{routingKey}'.",
+                    ex);
             }
         }
     }

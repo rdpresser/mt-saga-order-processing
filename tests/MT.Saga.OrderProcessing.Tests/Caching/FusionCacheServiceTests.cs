@@ -10,18 +10,20 @@ public class FusionCacheServiceTests
     [Fact]
     public async Task GetOrSetAsync_should_store_entries_with_tags_that_can_be_invalidated()
     {
+        var ct = TestContext.Current.CancellationToken;
         var cacheService = CreateCacheService();
 
         var cachedValue = await cacheService.GetOrSetAsync(
             "orders:by-id:1",
             _ => Task.FromResult("value-1"),
-            tags: [CacheTags.Orders]).ConfigureAwait(true);
+            tags: [CacheTags.Orders],
+            cancellationToken: ct).ConfigureAwait(true);
 
         cachedValue.ShouldBe("value-1");
 
-        await cacheService.RemoveByTagAsync(CacheTags.Orders).ConfigureAwait(true);
+        await cacheService.RemoveByTagAsync(CacheTags.Orders, ct).ConfigureAwait(true);
 
-        var valueAfterInvalidation = await cacheService.GetAsync<string>("orders:by-id:1").ConfigureAwait(true);
+        var valueAfterInvalidation = await cacheService.GetAsync<string>("orders:by-id:1", cancellationToken: ct).ConfigureAwait(true);
 
         valueAfterInvalidation.ShouldBeNull();
     }
@@ -29,6 +31,7 @@ public class FusionCacheServiceTests
     [Fact]
     public async Task GetOrSetAsync_should_execute_factory_once_for_concurrent_requests()
     {
+        var ct = TestContext.Current.CancellationToken;
         var cacheService = CreateCacheService();
         var executions = 0;
 
@@ -41,7 +44,8 @@ public class FusionCacheServiceTests
                     await Task.Delay(50, ct).ConfigureAwait(false);
                     return "shared-value";
                 },
-                tags: [CacheTags.Orders]))
+                tags: [CacheTags.Orders],
+                cancellationToken: ct))
             .ToArray();
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(true);
@@ -57,12 +61,14 @@ public class FusionCacheServiceTests
     [Fact]
     public async Task GetOrSetAsync_should_allow_null_values_at_cache_abstraction_level()
     {
+        var ct = TestContext.Current.CancellationToken;
         var cacheService = CreateCacheService();
 
         var result = await cacheService.GetOrSetAsync<string?>(
             "orders:nullable",
             _ => Task.FromResult<string?>(null),
-            tags: [CacheTags.Orders]).ConfigureAwait(true);
+            tags: [CacheTags.Orders],
+            cancellationToken: ct).ConfigureAwait(true);
 
         result.ShouldBeNull();
     }
@@ -70,12 +76,14 @@ public class FusionCacheServiceTests
     [Fact]
     public async Task GetOrSetRequiredAsync_should_throw_when_factory_returns_null()
     {
+        var ct = TestContext.Current.CancellationToken;
         var cacheService = CreateCacheService();
 
         var act = async () => await cacheService.GetOrSetRequiredAsync<string>(
             "orders:required-null",
             _ => Task.FromResult<string>(null!),
-            tags: [CacheTags.Orders]).ConfigureAwait(false);
+            tags: [CacheTags.Orders],
+            cancellationToken: ct).ConfigureAwait(false);
 
         await act.ShouldThrowAsync<InvalidOperationException>().ConfigureAwait(true);
     }
