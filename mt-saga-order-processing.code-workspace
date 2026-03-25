@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../tc-agro-solutions"
+		},
+		{
+			"path": "references"
 		}
 	],
 	"settings": {

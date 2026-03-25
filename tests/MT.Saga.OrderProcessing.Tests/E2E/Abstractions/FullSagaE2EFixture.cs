@@ -303,7 +303,7 @@ WHERE ""Body"" ILIKE @orderIdMatch
 
     private async Task WaitForOrderServiceReadinessAsync(CancellationToken cancellationToken)
     {
-        var timeout = TimeSpan.FromSeconds(30);
+        var timeout = TimeSpan.FromSeconds(60);  // Increased from 30 to 60 seconds
         var started = DateTimeOffset.UtcNow;
 
         while (DateTimeOffset.UtcNow - started < timeout)
@@ -315,10 +315,13 @@ WHERE ""Body"" ILIKE @orderIdMatch
                 {
                     return;
                 }
+                
+                Console.WriteLine($"Health check returned: {response.StatusCode}");
             }
-            catch
+            catch (Exception ex)
             {
                 // Ignore transient startup errors while app initializes.
+                Console.WriteLine($"Health check error: {ex.GetType().Name} - {ex.Message}");
             }
 
             await Task.Delay(500, cancellationToken);

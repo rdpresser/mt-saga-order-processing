@@ -1,6 +1,19 @@
-@MT.Saga.OrderProcessing.OrderService_HostAddress = http://localhost:5214
+@host = http://localhost:5214
+@orderId = 00000000-0000-0000-0000-000000000001
 
-GET {{MT.Saga.OrderProcessing.OrderService_HostAddress}}/weatherforecast/
+POST {{host}}/orders
+Content-Type: application/json
+x-correlation-id: {{$guid}}
+
+{
+	"amount": 120.50,
+	"customerEmail": "customer@example.com"
+}
+
+###
+
+GET {{host}}/orders/{{orderId}}
 Accept: application/json
+x-correlation-id: {{$guid}}
 
 ###

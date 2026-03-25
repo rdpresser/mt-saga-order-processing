@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.OpenApi;
 using System.Reflection;
 using MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
-using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
@@ -38,7 +38,7 @@ public static class ServiceCollectionExtensions
 
         services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
         services.AddOrderProcessingCaching(configuration);
-        services.AddOrderSagaMassTransit(configuration);
+        services.AddSagaOrchestrationMassTransit(configuration);
 
         services.AddScoped(typeof(IEndpointBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddScoped(typeof(IEndpointBehavior<,>), typeof(ValidationBehavior<,>));
