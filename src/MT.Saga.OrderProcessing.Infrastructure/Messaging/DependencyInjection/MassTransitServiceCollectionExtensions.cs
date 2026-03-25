@@ -47,7 +47,7 @@ public static class MassTransitServiceCollectionExtensions
 
                 cfg.ReceiveEndpoint("order-saga", endpoint =>
                 {
-                    ConfigureCommonReceiveEndpointPolicies(context, endpoint, configuration);
+                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
 
                     endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
                     endpoint.ConfigureSaga<OrderState>(context);
@@ -61,8 +61,12 @@ public static class MassTransitServiceCollectionExtensions
     public static IServiceCollection AddWorkerMassTransit(
         this IServiceCollection services,
         IConfiguration configuration,
-        params Type[] consumerTypes)
+        Action<IBusRegistrationConfigurator> registerConsumers,
+        Action<IRabbitMqBusFactoryConfigurator, IRegistrationContext, IConfiguration> configureReceiveEndpoints)
     {
+        ArgumentNullException.ThrowIfNull(registerConsumers);
+        ArgumentNullException.ThrowIfNull(configureReceiveEndpoints);
+
         services.AddOrderProcessingDbContext(configuration);
         services.AddOrderProcessingMessagingOptions(configuration);
         services.AddSingleton<LoggingConsumeObserver>();
@@ -70,18 +74,7 @@ public static class MassTransitServiceCollectionExtensions
 
         services.AddMassTransit(x =>
         {
-            x.AddConfigureEndpointsCallback((context, _, endpoint) =>
-            {
-                if (endpoint is IRabbitMqReceiveEndpointConfigurator rabbitEndpoint)
-                {
-                    ConfigureCommonReceiveEndpointPolicies(context, rabbitEndpoint, configuration);
-                }
-            });
-
-            foreach (var consumerType in consumerTypes)
-            {
-                x.AddConsumer(consumerType);
-            }
+            registerConsumers(x);
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -90,73 +83,29 @@ public static class MassTransitServiceCollectionExtensions
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
                 ConfigureOrderTopicPublishing(cfg);
 
-                foreach (var consumerType in consumerTypes)
-                {
-                    cfg.ReceiveEndpoint(ResolveWorkerEndpointName(consumerType), endpoint =>
-                    {
-                        ConfigureCommonReceiveEndpointPolicies(context, endpoint, configuration);
-                        endpoint.ConfigureConsumer(context, consumerType);
-                    });
-                }
+                configureReceiveEndpoints(cfg, context, configuration);
             });
         });
 
         return services;
     }
 
-    private static string ResolveWorkerEndpointName(Type consumerType)
-    {
-        return consumerType.Name switch
-        {
-            "ProcessPaymentConsumer" => "process-payment",
-            "ReserveInventoryConsumer" => "reserve-inventory",
-            "RefundPaymentConsumer" => "refund-payment",
-            _ => ToKebabCase(consumerType.Name.EndsWith("Consumer", StringComparison.Ordinal)
-                ? consumerType.Name[..^"Consumer".Length]
-                : consumerType.Name)
-        };
-    }
-
-    private static string ToKebabCase(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var chars = new List<char>(value.Length + 8);
-        for (var i = 0; i < value.Length; i++)
-        {
-            var current = value[i];
-            if (char.IsUpper(current))
-            {
-                if (i > 0)
-                {
-                    chars.Add('-');
-                }
-
-                chars.Add(char.ToLowerInvariant(current));
-            }
-            else
-            {
-                chars.Add(current);
-            }
-        }
-
-        return new string(chars.ToArray());
-    }
-
-    private static void ConfigureCommonReceiveEndpointPolicies(
+    public static void ConfigureCommonReceiveEndpointPolicies(
+        this IReceiveEndpointConfigurator endpoint,
         IRegistrationContext context,
-        IRabbitMqReceiveEndpointConfigurator endpoint,
         IConfiguration configuration)
     {
+        if (endpoint is not IRabbitMqReceiveEndpointConfigurator rabbitEndpoint)
+        {
+            throw new InvalidOperationException("RabbitMQ receive endpoint configurator is required.");
+        }
+
         var resilienceOptions = configuration.GetSection("Messaging:Resilience").Get<MessagingResilienceOptions>()
             ?? new MessagingResilienceOptions();
 
-        endpoint.PrefetchCount = (ushort)Math.Max(1, resilienceOptions.PrefetchCount);
+        rabbitEndpoint.PrefetchCount = (ushort)Math.Max(1, resilienceOptions.PrefetchCount);
 
-        endpoint.UseMessageRetry(r =>
+        rabbitEndpoint.UseMessageRetry(r =>
         {
             r.Exponential(
                 retryLimit: Math.Max(1, resilienceOptions.MaxRetryAttempts),
@@ -165,14 +114,14 @@ public static class MassTransitServiceCollectionExtensions
                 intervalDelta: TimeSpan.FromSeconds(5));
         });
 
-        endpoint.UseKillSwitch(options =>
+        rabbitEndpoint.UseKillSwitch(options =>
         {
             options.SetActivationThreshold(10);
             options.SetTripThreshold(0.15);
             options.SetRestartTimeout(TimeSpan.FromMinutes(1));
         });
 
-        endpoint.UseEntityFrameworkOutbox<OrderSagaDbContext>(context);
+        rabbitEndpoint.UseEntityFrameworkOutbox<OrderSagaDbContext>(context);
     }
 
     private static void ConfigureRabbitMqHost(IRabbitMqBusFactoryConfigurator cfg, IConfiguration configuration)

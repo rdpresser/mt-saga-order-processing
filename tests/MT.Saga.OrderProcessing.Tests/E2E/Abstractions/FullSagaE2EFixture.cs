@@ -291,8 +291,25 @@ WHERE ""Body"" ILIKE @orderIdMatch
         builder.AddServiceDefaults();
         builder.Services.AddWorkerMassTransit(
             builder.Configuration,
-            typeof(ProcessPaymentConsumer),
-            typeof(RefundPaymentConsumer));
+            registerConsumers: x =>
+            {
+                x.AddConsumer<ProcessPaymentConsumer>();
+                x.AddConsumer<RefundPaymentConsumer>();
+            },
+            configureReceiveEndpoints: (cfg, context, configuration) =>
+            {
+                cfg.ReceiveEndpoint("process-payment", endpoint =>
+                {
+                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
+                    endpoint.ConfigureConsumer<ProcessPaymentConsumer>(context);
+                });
+
+                cfg.ReceiveEndpoint("refund-payment", endpoint =>
+                {
+                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
+                    endpoint.ConfigureConsumer<RefundPaymentConsumer>(context);
+                });
+            });
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);
@@ -311,7 +328,18 @@ WHERE ""Body"" ILIKE @orderIdMatch
         builder.AddServiceDefaults();
         builder.Services.AddWorkerMassTransit(
             builder.Configuration,
-            typeof(ReserveInventoryConsumer));
+            registerConsumers: x =>
+            {
+                x.AddConsumer<ReserveInventoryConsumer>();
+            },
+            configureReceiveEndpoints: (cfg, context, configuration) =>
+            {
+                cfg.ReceiveEndpoint("reserve-inventory", endpoint =>
+                {
+                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
+                    endpoint.ConfigureConsumer<ReserveInventoryConsumer>(context);
+                });
+            });
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);
@@ -324,32 +352,33 @@ WHERE ""Body"" ILIKE @orderIdMatch
         var timeout = TimeSpan.FromSeconds(60);
         var started = DateTimeOffset.UtcNow;
         var attempts = 0;
+        var lastObservation = "No response observed";
 
         while (DateTimeOffset.UtcNow - started < timeout)
         {
             attempts++;
             try
             {
-                var response = await OrderClient.GetAsync("/health", cancellationToken);
+                var response = await OrderClient.GetAsync("/alive", cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"✓ Health check passed after {attempts} attempts");
                     return;
                 }
 
-                Console.WriteLine($"Attempt {attempts}: Health check returned {response.StatusCode}");
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                lastObservation = $"HTTP {(int)response.StatusCode} {response.StatusCode}. Body: {body}";
             }
             catch (HttpRequestException ex)
             {
-                Console.WriteLine($"Attempt {attempts}: Connection error: {ex.Message}");
+                lastObservation = $"HttpRequestException: {ex.Message}";
             }
             catch (OperationCanceledException ex)
             {
-                Console.WriteLine($"Attempt {attempts}: Request cancelled: {ex.Message}");
+                lastObservation = $"OperationCanceledException: {ex.Message}";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Attempt {attempts}: Unexpected error - {ex.GetType().Name}: {ex.Message}");
+                lastObservation = $"{ex.GetType().Name}: {ex.Message}";
             }
 
             await Task.Delay(500, cancellationToken);
@@ -357,7 +386,7 @@ WHERE ""Body"" ILIKE @orderIdMatch
 
         var elapsed = DateTimeOffset.UtcNow - started;
         throw new InvalidOperationException(
-            $"Order Service did not become healthy within {timeout.TotalSeconds:F0} seconds (tried {attempts} times, elapsed {elapsed.TotalSeconds:F2}s).");
+            $"Order Service did not become alive within {timeout.TotalSeconds:F0} seconds (tried {attempts} times, elapsed {elapsed.TotalSeconds:F2}s). Last observation: {lastObservation}");
     }
 
     private void BuildSettings()

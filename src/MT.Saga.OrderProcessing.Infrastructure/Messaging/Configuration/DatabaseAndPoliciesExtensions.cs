@@ -60,6 +60,10 @@ public static class MassTransitPoliciesExtensions
         services.Configure<CommonMassTransitPoliciesConfiguration.MessagingPoliciesOptions>(
             configuration.GetSection("Messaging:Policies"));
 
+        services.Configure<MessagingResilienceOptions>(
+            configuration.GetSection("Messaging:Resilience"));
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<MessagingResilienceOptions>>().Value);
+
         return services;
     }
 }
