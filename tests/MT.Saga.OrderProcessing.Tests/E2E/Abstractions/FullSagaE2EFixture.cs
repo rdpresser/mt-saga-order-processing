@@ -3,12 +3,14 @@ using MassTransit;
 using MassTransit.RabbitMqTransport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
+using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
 using MT.Saga.OrderProcessing.OrderService.Extensions;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
@@ -59,6 +61,9 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
         BuildSettings();
 
+        // Apply migrations ONCE, before creating web app instances
+        await ApplyMigrationsOnceAsync(ct);
+
         OrderServiceWebApplicationFactory = new OrderServiceFactory(_settings);
         OrderClient = OrderServiceWebApplicationFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -71,6 +76,19 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         _inventoryWorkerHost = await StartInventoryWorkerAsync(ct);
 
         await WaitForOrderServiceReadinessAsync(ct);
+    }
+
+    private async Task ApplyMigrationsOnceAsync(CancellationToken ct)
+    {
+        // Create a temporary DbContext just for running migrations
+        // Use the connection string built from testcontainer settings
+        var connectionString = BuildDatabaseConnectionString();
+        
+        var optionsBuilder = new DbContextOptionsBuilder<OrderSagaDbContext>();
+        optionsBuilder.UseNpgsql(connectionString);
+        
+        await using var context = new OrderSagaDbContext(optionsBuilder.Options);
+        await context.Database.MigrateAsync(ct);
     }
 
     public async ValueTask DisposeAsync()
@@ -374,7 +392,8 @@ WHERE ""Body"" ILIKE @orderIdMatch
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment(Environments.Development);
+            // Set environment to Test so Program.cs doesn't run migrations
+            builder.UseEnvironment("Test");
             builder.ConfigureAppConfiguration((_, configurationBuilder) =>
             {
                 configurationBuilder.AddInMemoryCollection(settings);
