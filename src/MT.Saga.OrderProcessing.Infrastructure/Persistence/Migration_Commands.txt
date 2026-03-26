@@ -1,0 +1,62 @@
+==> Run shell commands from repository root (or from /src using adjusted relative paths)
+
+==> Context and project names for this repository
+DbContext: OrderSagaDbContext
+Startup project: src/Services/MT.Saga.OrderProcessing.OrderService
+Migrations project: src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Add a new migration
+Shell: dotnet ef migrations add <migration-name> -o Persistence/Migrations -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+PMC: Add-Migration <migration-name> -OutputDir Persistence/Migrations -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Remove the last migration (only if not applied to database)
+Shell: dotnet ef migrations remove -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+PMC: Remove-Migration -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Apply pending migrations
+Shell: dotnet ef database update -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+PMC: Update-Database -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Roll back database to baseline (migration 0)
+Shell: dotnet ef database update 0 -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+PMC: Update-Database -Migration 0 -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Roll back to a specific migration
+Shell: dotnet ef database update <migration-name> -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+PMC: Update-Database <migration-name> -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Generate SQL script for all migrations
+Shell: dotnet ef migrations script -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure | Out-File ./scriptFile.sql
+PMC: Script-Migration -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure
+
+==> Generate rollback script from one migration to baseline
+PMC: Script-Migration -Context OrderSagaDbContext -StartupProject src/Services/MT.Saga.OrderProcessing.OrderService -Project src/MT.Saga.OrderProcessing.Infrastructure -From <migration-name> -To 0
+
+==> Set environment for local migration commands (PowerShell)
+PMC: $env:ASPNETCORE_ENVIRONMENT="Development"
+
+==> Install EF Core CLI
+Shell: dotnet tool install --global dotnet-ef
+
+==> Update EF Core CLI
+Shell: dotnet tool uninstall --global dotnet-ef
+Shell: dotnet tool install --global dotnet-ef
+
+==> List installed dotnet tools
+Shell: dotnet tool list
+
+==> Entity Framework command help (Package Manager Console)
+PMC: Get-Help EntityFramework
+PMC: Get-Help Add-Migration
+
+==> Full reset flow (recreate migrations from zero)
+1) Roll back database to baseline:
+Shell: dotnet ef database update 0 -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+
+2) Delete existing files from src/MT.Saga.OrderProcessing.Infrastructure/Persistence/Migrations
+
+3) Create new initial migration in the same folder:
+Shell: dotnet ef migrations add InitialMigration -o Persistence/Migrations -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure
+
+4) Apply migration:
+Shell: dotnet ef database update -c OrderSagaDbContext -s src/Services/MT.Saga.OrderProcessing.OrderService -p src/MT.Saga.OrderProcessing.Infrastructure

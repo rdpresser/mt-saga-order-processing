@@ -1,0 +1,42 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../tc-agro-solutions"
+		},
+		{
+			"path": "references"
+		}
+	],
+	"settings": {
+		"git.autoRepositoryDetection": "subFolders",
+		"dotnet.server.useOmnisharp": false,
+		"dotnet.defaultSolution": "disable",
+		"[csharp]": {
+			"editor.defaultFormatter": "ms-dotnettools.csharp"
+		},
+		"[powershell]": {
+			"editor.defaultFormatter": "ms-vscode.powershell"
+		},
+		"[json]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode"
+		},
+		"[yaml]": {
+			"editor.defaultFormatter": "redhat.vscode-yaml"
+		},
+		"[dockerfile]": {
+			"editor.defaultFormatter": "ms-azuretools.vscode-containers"
+		}
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-dotnettools.csdevkit",
+			"ms-dotnettools.csharp",
+			"ms-vscode.powershell",
+			"redhat.vscode-yaml",
+			"ms-azuretools.vscode-containers"
+		]
+	}
+}

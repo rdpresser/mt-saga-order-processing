@@ -646,6 +646,12 @@ This is a demonstration project, not a production platform.
 - File names must match class names exactly (case-sensitive)
 - Prefer LF line endings for scripts and config files
 
+## Workspace Editing Scope
+
+- In this workspace, apply code changes only inside the `mt-saga-order-processing` folder (`path: "."` in the workspace file)
+- Never edit files under the sibling workspace folder `../tc-agro-solutions` unless the user explicitly requests that repository
+- Never move, rename, or delete files in `../tc-agro-solutions` while working on this repository
+
 ## Maintenance Script Standard
 
 - All maintenance scripts must use PowerShell `.ps1` as the default standard
@@ -739,7 +745,7 @@ Apply the same organizational principles while keeping package choices and versi
 .\dev.ps1 down
 ```
 
-RabbitMQ Management UI: http://localhost:15672 (guest/guest)
+RabbitMQ Management UI: http://localhost:15672 (guest/guest)  
 PostgreSQL: localhost:5432
 
 ---
@@ -832,3 +838,9 @@ In distributed systems:
 > I added OpenTelemetry and basic observability because debugging distributed systems without tracing is extremely challenging.
 >
 > This provides full visibility of Saga execution across services.
+
+---
+
+# Debugging Configuration
+
+Prefer a unique debug profile of the AppHost in HTTP in Visual Studio to directly open the dashboard and avoid HTTPS certificate issues during local development.
