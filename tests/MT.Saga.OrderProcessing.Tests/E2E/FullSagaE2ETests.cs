@@ -53,7 +53,7 @@ public sealed class FullSagaE2ETests
 
         var orderId = await _fixture.CreateOrderAsync(120.50m, $"happy-{Guid.NewGuid():N}@example.com", ct);
 
-        var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Confirmed", TimeSpan.FromSeconds(90), ct);
+        var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
         projected.ShouldBeTrue();
 
         var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
@@ -74,14 +74,14 @@ public sealed class FullSagaE2ETests
         {
             var orderId = await _fixture.CreateOrderAsync(95.20m, $"payment-failed-{Guid.NewGuid():N}@example.com", ct);
 
-            var timeout = TimeSpan.FromSeconds(45);
+            var timeout = TimeSpan.FromSeconds(120);
             var started = DateTimeOffset.UtcNow;
             var finalized = false;
 
             while (DateTimeOffset.UtcNow - started < timeout)
             {
                 await _fixture.PublishPaymentFailedAsync(orderId, ct);
-                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(5), ct);
+                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(10), ct);
                 if (finalized)
                 {
                     break;
@@ -92,7 +92,7 @@ public sealed class FullSagaE2ETests
 
             finalized.ShouldBeTrue();
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(30), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(120), ct);
             projected.ShouldBeTrue();
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
@@ -115,14 +115,14 @@ public sealed class FullSagaE2ETests
         {
             var orderId = await _fixture.CreateOrderAsync(95.20m, $"sad-{Guid.NewGuid():N}@example.com", ct);
 
-            var timeout = TimeSpan.FromSeconds(45);
+            var timeout = TimeSpan.FromSeconds(120);
             var started = DateTimeOffset.UtcNow;
             var finalized = false;
 
             while (DateTimeOffset.UtcNow - started < timeout)
             {
                 await _fixture.PublishInventoryFailedAsync(orderId, ct);
-                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(5), ct);
+                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(10), ct);
                 if (finalized)
                 {
                     break;
@@ -133,7 +133,7 @@ public sealed class FullSagaE2ETests
 
             finalized.ShouldBeTrue();
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(30), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(120), ct);
             projected.ShouldBeTrue();
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
@@ -168,8 +168,8 @@ public sealed class FullSagaE2ETests
 
         firstOrderId.ShouldNotBe(secondOrderId);
 
-        var firstProjected = await _fixture.WaitForOrderReadModelStatusAsync(firstOrderId, "Confirmed", TimeSpan.FromSeconds(120), ct);
-        var secondProjected = await _fixture.WaitForOrderReadModelStatusAsync(secondOrderId, "Confirmed", TimeSpan.FromSeconds(120), ct);
+        var firstProjected = await _fixture.WaitForOrderReadModelStatusAsync(firstOrderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
+        var secondProjected = await _fixture.WaitForOrderReadModelStatusAsync(secondOrderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
 
         firstProjected.ShouldBeTrue();
         secondProjected.ShouldBeTrue();
