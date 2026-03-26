@@ -15,7 +15,7 @@ public static class CreateOrderEndpoint
         app.MapPost("/orders", async (
             CreateOrderCommand command,
             EndpointPipeline<CreateOrderCommand, IResult> pipeline,
-            IPublishEndpoint publish,
+            IPublishEndpoint publishEndpoint,
             MessagingResilienceOptions resilienceOptions,
             ILoggerFactory loggerFactory,
             HttpContext httpContext,
@@ -42,7 +42,7 @@ public static class CreateOrderEndpoint
                     isAuthenticated: isAuthenticated,
                     metadata: metadata);
 
-                await publish
+                await publishEndpoint
                     .PublishEventContextWithRetryAsync(eventContext, logger, resilienceOptions, ct)
                     .ConfigureAwait(false);
 

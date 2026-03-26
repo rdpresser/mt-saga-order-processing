@@ -646,6 +646,12 @@ This is a demonstration project, not a production platform.
 - File names must match class names exactly (case-sensitive)
 - Prefer LF line endings for scripts and config files
 
+## Workspace Editing Scope
+
+- In this workspace, apply code changes only inside the `mt-saga-order-processing` folder (`path: "."` in the workspace file)
+- Never edit files under the sibling workspace folder `../tc-agro-solutions` unless the user explicitly requests that repository
+- Never move, rename, or delete files in `../tc-agro-solutions` while working on this repository
+
 ## Maintenance Script Standard
 
 - All maintenance scripts must use PowerShell `.ps1` as the default standard

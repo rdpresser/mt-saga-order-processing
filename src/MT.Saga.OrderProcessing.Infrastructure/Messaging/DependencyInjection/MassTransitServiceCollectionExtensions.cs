@@ -1,16 +1,16 @@
 using MassTransit;
 using MassTransit.RabbitMqTransport;
-using System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System.Reflection;
+using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Observers;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
-using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Saga;
+using System.ComponentModel;
+using System.Reflection;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
 
@@ -23,9 +23,9 @@ public static class MassTransitServiceCollectionExtensions
         services.AddSingleton<LoggingConsumeObserver>();
         services.AddSingleton<LoggingPublishObserver>();
 
-        EndpointConvention.Map<EventContext<ProcessPayment>>(new Uri("queue:process-payment"));
-        EndpointConvention.Map<EventContext<ReserveInventory>>(new Uri("queue:reserve-inventory"));
-        EndpointConvention.Map<EventContext<RefundPayment>>(new Uri("queue:refund-payment"));
+        EndpointConvention.Map<EventContext<ProcessPayment>>(new Uri($"queue:{OrderMessagingTopology.Queues.ProcessPayment}"));
+        EndpointConvention.Map<EventContext<ReserveInventory>>(new Uri($"queue:{OrderMessagingTopology.Queues.ReserveInventory}"));
+        EndpointConvention.Map<EventContext<RefundPayment>>(new Uri($"queue:{OrderMessagingTopology.Queues.RefundPayment}"));
 
         services.AddMassTransit(x =>
         {
@@ -45,10 +45,9 @@ public static class MassTransitServiceCollectionExtensions
 
                 ConfigureOrderTopicPublishing(cfg);
 
-                cfg.ReceiveEndpoint("order-saga", endpoint =>
+                cfg.ReceiveEndpoint(OrderMessagingTopology.Queues.Saga, endpoint =>
                 {
                     endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-
                     endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
                     endpoint.ConfigureSaga<OrderState>(context);
                 });
@@ -62,7 +61,7 @@ public static class MassTransitServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration,
         Action<IBusRegistrationConfigurator> registerConsumers,
-        Action<IRabbitMqBusFactoryConfigurator, IRegistrationContext, IConfiguration> configureReceiveEndpoints)
+        Action<IRabbitMqBusFactoryConfigurator, IBusRegistrationContext, IConfiguration> configureReceiveEndpoints)
     {
         ArgumentNullException.ThrowIfNull(registerConsumers);
         ArgumentNullException.ThrowIfNull(configureReceiveEndpoints);
@@ -75,6 +74,12 @@ public static class MassTransitServiceCollectionExtensions
         services.AddMassTransit(x =>
         {
             registerConsumers(x);
+
+            x.AddEntityFrameworkOutbox<OrderSagaDbContext>(o =>
+            {
+                o.QueryDelay = TimeSpan.FromSeconds(1);
+                o.UseBusOutbox();
+            });
 
             x.UsingRabbitMq((context, cfg) =>
             {

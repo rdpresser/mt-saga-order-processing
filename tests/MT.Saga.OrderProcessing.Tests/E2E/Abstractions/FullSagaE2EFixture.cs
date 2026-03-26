@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using MassTransit;
 using MassTransit.RabbitMqTransport;
@@ -12,8 +13,12 @@ using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
+using MT.Saga.OrderProcessing.InventoryService.Consumers.Definitions;
 using MT.Saga.OrderProcessing.OrderService.Extensions;
+using MT.Saga.OrderProcessing.PaymentService.Consumers.Definitions;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
+using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
+using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrders;
 using MT.Saga.OrderProcessing.PaymentService.Consumers;
 using Npgsql;
 using Shouldly;
@@ -147,12 +152,101 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
     public async Task EnsureInventoryWorkerStartedAsync(CancellationToken cancellationToken)
     {
+        if (_inventoryWorkerHost is not null && IsHostStopped(_inventoryWorkerHost))
+        {
+            _inventoryWorkerHost.Dispose();
+            _inventoryWorkerHost = null;
+        }
+
         if (_inventoryWorkerHost is not null)
         {
             return;
         }
 
         _inventoryWorkerHost = await StartInventoryWorkerAsync(cancellationToken);
+        await Task.Delay(500, cancellationToken);
+    }
+
+    public async Task StopPaymentWorkerAsync(CancellationToken cancellationToken)
+    {
+        if (_paymentWorkerHost is null)
+        {
+            return;
+        }
+
+        await _paymentWorkerHost.StopAsync(cancellationToken);
+        _paymentWorkerHost.Dispose();
+        _paymentWorkerHost = null;
+    }
+
+    public async Task EnsurePaymentWorkerStartedAsync(CancellationToken cancellationToken)
+    {
+        if (_paymentWorkerHost is not null && IsHostStopped(_paymentWorkerHost))
+        {
+            _paymentWorkerHost.Dispose();
+            _paymentWorkerHost = null;
+        }
+
+        if (_paymentWorkerHost is not null)
+        {
+            return;
+        }
+
+        _paymentWorkerHost = await StartPaymentWorkerAsync(cancellationToken);
+        await Task.Delay(500, cancellationToken);
+    }
+
+    public async Task RestartWorkersAsync(CancellationToken cancellationToken)
+    {
+        await StopPaymentWorkerAsync(cancellationToken);
+        await StopInventoryWorkerAsync(cancellationToken);
+        await EnsurePaymentWorkerStartedAsync(cancellationToken);
+        await EnsureInventoryWorkerStartedAsync(cancellationToken);
+    }
+
+    public async Task<HttpStatusCode> GetOrderStatusCodeAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var response = await OrderClient.GetAsync($"/orders/{orderId}", cancellationToken);
+        return response.StatusCode;
+    }
+
+    public async Task<GetOrderByIdResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var response = await OrderClient.GetAsync($"/orders/{orderId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<GetOrderByIdResponse>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<GetOrdersResponse>> GetOrdersAsync(int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var response = await OrderClient.GetAsync($"/orders?page={page}&pageSize={pageSize}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<IReadOnlyCollection<GetOrdersResponse>>(cancellationToken: cancellationToken);
+        return payload ?? Array.Empty<GetOrdersResponse>();
+    }
+
+    public async Task<bool> WaitForOrderReadModelStatusAsync(Guid orderId, string expectedStatus, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+
+        while (DateTimeOffset.UtcNow - started < timeout)
+        {
+            var response = await GetOrderByIdAsync(orderId, cancellationToken);
+            if (response is not null && string.Equals(response.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        return false;
     }
 
     public async Task PublishInventoryFailedAsync(Guid orderId, CancellationToken cancellationToken)
@@ -182,12 +276,60 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
             await bus.Publish(@event, context =>
             {
-                if (context is RabbitMqSendContext rabbitMqSendContext)
+                var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
+                    @event.SourceService,
+                    @event.Entity,
+                    @event.Action);
+
+                context.SetRoutingKey(routingKey);
+                if (context.TryGetPayload<RabbitMqSendContext>(out var rabbitMqSendContext))
                 {
-                    rabbitMqSendContext.RoutingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
-                        @event.SourceService,
-                        @event.Entity,
-                        @event.Action);
+                    rabbitMqSendContext.RoutingKey = routingKey;
+                }
+            }, cancellationToken);
+        }
+        finally
+        {
+            await bus.StopAsync(cancellationToken);
+        }
+    }
+
+    public async Task PublishPaymentFailedAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
+
+        var bus = Bus.Factory.CreateUsingRabbitMq(cfg =>
+        {
+            cfg.Host(hostUri, h =>
+            {
+                h.Username(GetRequiredSetting("Messaging:RabbitMq:UserName"));
+                h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
+            });
+
+            cfg.Message<EventContext<PaymentFailed>>(x => x.SetEntityName(OrderMessagingTopology.ExchangeName));
+            cfg.Publish<EventContext<PaymentFailed>>(x => x.ExchangeType = "topic");
+        });
+
+        await bus.StartAsync(cancellationToken);
+        try
+        {
+            var @event = EventContext.Create(
+                sourceService: OrderMessagingTopology.SourceService,
+                entity: OrderMessagingTopology.EntityName,
+                action: OrderMessagingTopology.Actions.PaymentFailed,
+                payload: new PaymentFailed(orderId));
+
+            await bus.Publish(@event, context =>
+            {
+                var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
+                    @event.SourceService,
+                    @event.Entity,
+                    @event.Action);
+
+                context.SetRoutingKey(routingKey);
+                if (context.TryGetPayload<RabbitMqSendContext>(out var rabbitMqSendContext))
+                {
+                    rabbitMqSendContext.RoutingKey = routingKey;
                 }
             }, cancellationToken);
         }
@@ -227,6 +369,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
     public async Task<bool> WaitForSagaFinalizedAsync(Guid orderId, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.UtcNow;
+        var sagaInstanceObserved = false;
 
         while (DateTimeOffset.UtcNow - started < timeout)
         {
@@ -238,9 +381,26 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
             command.Parameters.AddWithValue("orderId", orderId);
 
             var count = (long)(await command.ExecuteScalarAsync(cancellationToken) ?? 0L);
-            if (count == 0)
+            if (count > 0)
+            {
+                sagaInstanceObserved = true;
+            }
+            else if (sagaInstanceObserved)
             {
                 return true;
+            }
+            else
+            {
+                await using var statusCommand = connection.CreateCommand();
+                statusCommand.CommandText = "SELECT \"Status\" FROM \"Orders\" WHERE \"OrderId\" = @orderId";
+                statusCommand.Parameters.AddWithValue("orderId", orderId);
+
+                var status = (await statusCommand.ExecuteScalarAsync(cancellationToken))?.ToString();
+                if (string.Equals(status, "Confirmed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
 
             await Task.Delay(500, cancellationToken);
@@ -293,23 +453,10 @@ WHERE ""Body"" ILIKE @orderIdMatch
             builder.Configuration,
             registerConsumers: x =>
             {
-                x.AddConsumer<ProcessPaymentConsumer>();
-                x.AddConsumer<RefundPaymentConsumer>();
+                x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
+                x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
             },
-            configureReceiveEndpoints: (cfg, context, configuration) =>
-            {
-                cfg.ReceiveEndpoint("process-payment", endpoint =>
-                {
-                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-                    endpoint.ConfigureConsumer<ProcessPaymentConsumer>(context);
-                });
-
-                cfg.ReceiveEndpoint("refund-payment", endpoint =>
-                {
-                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-                    endpoint.ConfigureConsumer<RefundPaymentConsumer>(context);
-                });
-            });
+            configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);
@@ -330,16 +477,9 @@ WHERE ""Body"" ILIKE @orderIdMatch
             builder.Configuration,
             registerConsumers: x =>
             {
-                x.AddConsumer<ReserveInventoryConsumer>();
+                x.AddConsumer<ReserveInventoryConsumer, ReserveInventoryConsumerDefinition>();
             },
-            configureReceiveEndpoints: (cfg, context, configuration) =>
-            {
-                cfg.ReceiveEndpoint("reserve-inventory", endpoint =>
-                {
-                    endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-                    endpoint.ConfigureConsumer<ReserveInventoryConsumer>(context);
-                });
-            });
+            configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);
@@ -426,6 +566,12 @@ WHERE ""Body"" ILIKE @orderIdMatch
         return _settings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
             ? value
             : throw new InvalidOperationException($"Required setting '{key}' is missing.");
+    }
+
+    private static bool IsHostStopped(IHost host)
+    {
+        var lifetime = host.Services.GetService<IHostApplicationLifetime>();
+        return lifetime?.ApplicationStopped.IsCancellationRequested ?? false;
     }
 
     private sealed class OrderServiceFactory(Dictionary<string, string?> settings)

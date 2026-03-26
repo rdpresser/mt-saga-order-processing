@@ -1,5 +1,5 @@
 @host = http://localhost:5214
-@orderId = 00000000-0000-0000-0000-000000000001
+@orderId = 064b45b4-172b-4052-ae29-12cd60fd7f2d
 
 POST {{host}}/orders
 Content-Type: application/json

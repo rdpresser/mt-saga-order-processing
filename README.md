@@ -42,7 +42,7 @@ Although implemented as a monorepo for simplicity, each service is logically iso
 - Retry policies with exponential backoff
 - Dead-letter handling
 - Idempotent consumers
-- Outbox pattern (MassTransit EF Outbox)
+- EF Outbox on worker services for reliable event publication
 - PostgreSQL persistence
 - Observability with OpenTelemetry
 - Local orchestration via .NET Aspire
@@ -132,6 +132,44 @@ Send an `OrderCreated` event via API or test harness.
 ### Failure Path
 
 - InventoryFailed -> RefundPayment -> OrderCancelled
+
+---
+
+## Messaging Decisions
+
+This section is intentionally short. For the detailed reference, validated discoveries, and MassTransit-specific rationale, use `docs/MASSTRANSIT_KB.md`.
+
+### Outbox Placement
+
+- OrderService HTTP entry point publishes with `IPublishEndpoint` and does not use EF Outbox
+- Saga orchestration endpoint does not use `UseEntityFrameworkOutbox(...)`
+- PaymentService and InventoryService workers use EF Outbox + Bus Outbox
+- Read-model projector is retry-only and does not use inbox/outbox middleware
+
+Reasoning:
+
+- HTTP-originated events must be dispatched immediately
+- Saga commands must reach worker queues deterministically
+- Worker consumers are the correct transactional boundary for durable outbox behavior
+- Projector updates must not be suppressed by inbox deduplication
+
+### Routing Summary
+
+- Queue names are defined in `OrderMessagingTopology.Queues`
+- Saga-to-worker commands use explicit queue URIs rather than relying only on `EndpointConvention`
+- `EndpointConvention` remains registered as a secondary mechanism, not as the primary routing authority
+
+### Producer Interface Summary
+
+- Events: use `IPublishEndpoint` in application code, or `ConsumeContext.Publish` inside consumers
+- Commands: use `ISendEndpointProvider` in application code, or `ConsumeContext.Send` inside consumers
+- Avoid `IBus` as the default application dependency
+
+### Where To Read More
+
+- Executive summary: `README.md`
+- Detailed messaging decisions and discoveries: `docs/MASSTRANSIT_KB.md`
+- Refactoring status: `docs/REFACTORING_STATUS.md`
 
 ---
 

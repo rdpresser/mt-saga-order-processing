@@ -3,6 +3,8 @@
 **Prepared**: March 25, 2026  
 **Goal**: Eliminate reflection, improve explicit configuration, rationalize prefetch, simplify with extension methods for future componentization.
 
+> Status note (March 25, 2026): this document is a planning artifact. Some proposed steps were superseded by validated runtime discoveries. The authoritative operational decisions now live in `docs/MASSTRANSIT_KB.md` and `docs/REFACTORING_STATUS.md`.
+
 ---
 
 ## Executive Summary
@@ -135,8 +137,7 @@ Infrastructure/Messaging/
 
 - Create modular extensions:
   - `AddOrderSagaConfiguration()` (saga + state machine)
-  - `AddPaymentServiceConsumers()` (payment consumers)
-  - `AddInventoryServiceConsumers()` (inventory consumers)
+    - optional future service-specific registration modules if componentization requires them
   - `AddCommonMassTransitPolicies()` (retry, outbox, prefetch)
 
 ---
@@ -183,21 +184,19 @@ The boilerplate overhead is acceptable for these benefits.
 
 ## Refactoring Plan
 
-### Phase 1: Simplify Message Contracts (Remove EventContext)
+### Phase 1: Message Contracts Decision (Superseded)
+
+Status:
+
+- Superseded by validated architecture decision.
+- `EventContext<T>` remains in the repository by design.
+- Rationale is documented in `docs/MASSTRANSIT_KB.md` under repository decisions and known discoveries.
 
 **Steps**:
 
-1. In `MT.Saga.OrderProcessing.Contracts`:
-   - Remove `EventContext<T>` wrapper from events
-   - Use direct message records: `OrderCreated`, `PaymentProcessed`, etc.
-   - Keep metadata in optional command headers (CorrelationId, etc.)
-
-2. Update `OrderStateMachine`:
-   - Change `Event<EventContext<OrderCreated>>` → `Event<OrderCreated>`
-   - Simplify event definitions
-   - Update event initialization
-
-3. Update all consumers to receive unwrapped messages
+1. Keep `EventContext<T>` wrapper on events.
+2. Preserve metadata envelope behavior for correlation, audit, and routing key generation.
+3. Focus refactoring on explicit registration and deterministic routing, not message envelope removal.
 
 ### Phase 2: Reorganize Extensions for Componentization
 
@@ -251,42 +250,37 @@ The boilerplate overhead is acceptable for these benefits.
 **Steps**:
 
 1. Remove `params Type[] consumerTypes` from AddWorkerMassTransit
-2. Create explicit registration methods:
+2. Keep worker registration explicit in each worker `Program.cs`, or introduce service-specific extension methods only if they become a real runtime module:
 
    ```csharp
-   public static IServiceCollection AddPaymentServiceConsumers(
-       this IRegistrationConfigurator cfg)
-   {
-       cfg.AddConsumer<ProcessPaymentConsumer>();
-       cfg.AddConsumer<RefundPaymentConsumer>();
-       return cfg;
-   }
+   x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
+   x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
    ```
 
 3. Update OrderService/PaymentService/InventoryService Program.cs to use explicit registrations
 
-### Phase 5: Simplify State Machine
+### Phase 5: Simplify State Machine (Adjusted)
 
 **Steps**:
 
-1. Remove EventContext wrapper from state machine events/sends
-2. Simplify Send/Publish calls
-3. Use MassTransit message initialization
-4. Add helper extensions if needed
+1. Keep `EventContext<T>` in state machine events/sends.
+2. Prefer deterministic queue URI sends for saga-to-worker commands.
+3. Reduce boilerplate only if metadata preservation remains explicit.
+4. Add helper extensions only when they do not obscure routing behavior.
 
 ---
 
 ## Implementation Roadmap
 
-| Phase     | Item                                                  | File(s)                                                | Priority | Est. Lines          |
-| --------- | ----------------------------------------------------- | ------------------------------------------------------ | -------- | ------------------- |
-| 1         | Remove EventContext from contracts & update consumers | Contracts/\*.cs                                        | HIGH     | 50-100              |
-| 2         | Split MassTransitServiceCollectionExtensions          | Messaging/Configuration/\*                             | HIGH     | 300-400             |
-| 3         | Update state machine to use direct messages           | OrderStateMachine.cs                                   | HIGH     | -50 (reduction)     |
-| 4         | Rationalize prefetch config                           | Messaging/Configuration/CommonPoliciesConfiguration.cs | MEDIUM   | 50-100              |
-| 5         | Remove reflection-based consumer registration         | Messaging/DependencyInjection/\*                       | HIGH     | -100 (reduction)    |
-| 6         | Create explicit consumer registration extensions      | Services/\*/Program.cs                                 | HIGH     | 30-50 per service   |
-| **Total** |                                                       |                                                        |          | ~1000 lines changed |
+| Phase     | Item                                                 | File(s)                                                | Priority | Est. Lines          |
+| --------- | ---------------------------------------------------- | ------------------------------------------------------ | -------- | ------------------- |
+| 1         | Keep EventContext and document the decision          | docs/MASSTRANSIT_KB.md                                 | HIGH     | 20-40               |
+| 2         | Split MassTransitServiceCollectionExtensions         | Messaging/Configuration/\*                             | HIGH     | 300-400             |
+| 3         | Make saga routing deterministic with queue URIs      | OrderStateMachine.cs                                   | HIGH     | 20-40               |
+| 4         | Rationalize prefetch config                          | Messaging/Configuration/CommonPoliciesConfiguration.cs | MEDIUM   | 50-100              |
+| 5         | Remove reflection-based consumer registration        | Messaging/DependencyInjection/\*                       | HIGH     | -100 (reduction)    |
+| 6         | Keep worker registration explicit and definition-led | Services/\*/Program.cs                                 | HIGH     | 20-40 per service   |
+| **Total** |                                                      |                                                        |          | Historical estimate |
 
 ---
 
@@ -298,7 +292,7 @@ The boilerplate overhead is acceptable for these benefits.
 ✅ **Maintainability**: Each service defines its own consumers clearly  
 ✅ **Performance**: Proper prefetch rationalization (throughput maintained, clarity improved)  
 ✅ **Componentization**: Extensions organized for future independent package/service reuse  
-✅ **Simplicity**: Fewer wrapper layers; direct message contracts  
+✅ **Simplicity**: Less magic in configuration and routing, while preserving the `EventContext<T>` envelope  
 ✅ **Testability**: Explicit dependencies easier to test  
 ✅ **Future-ready**: When moving to distributed services, extensions can be easily packaged
 
@@ -328,3 +322,41 @@ The boilerplate overhead is acceptable for these benefits.
 **Reviewer**: Development Team  
 **Date**: TBD  
 **Status**: READY FOR IMPLEMENTATION
+
+---
+
+## Current Runtime Pattern
+
+This section captures the runtime pattern that is currently validated by the passing test suite. When this plan differs from the implementation, treat this section plus `docs/MASSTRANSIT_KB.md` as authoritative.
+
+### Registration Pattern
+
+- worker consumers are registered explicitly in each worker `Program.cs`
+- registration uses `AddConsumer<TConsumer, TDefinition>()`
+- `cfg.ConfigureEndpoints(context)` materializes receive endpoints from the consumer definitions
+- endpoint names live in the corresponding `ConsumerDefinition` types
+
+### Saga Routing Pattern
+
+- the saga sends worker commands using explicit queue URIs
+- `EndpointConvention` is kept only as a secondary routing mechanism
+- queue names are centralized in `OrderMessagingTopology.Queues`
+
+### Outbox Pattern
+
+- OrderService HTTP entry point does not use EF Outbox
+- saga receive endpoint does not use `UseEntityFrameworkOutbox(...)`
+- PaymentService and InventoryService workers keep EF Outbox + Bus Outbox
+- read-model projector remains retry-only without inbox/outbox middleware
+
+### Envelope Pattern
+
+- `EventContext<T>` remains part of the design
+- metadata, routing context, and audit/correlation information stay in the envelope
+- simplification efforts should target boilerplate reduction without removing the envelope
+
+### Documentation Boundary
+
+- `README.md` is the executive summary
+- `docs/MASSTRANSIT_KB.md` is the detailed messaging reference
+- `docs/REFACTORING_STATUS.md` tracks current validated status

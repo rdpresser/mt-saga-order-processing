@@ -25,6 +25,12 @@ public static class Program
             .Get<PostgresOrchestrationOptions>()
             ?? throw new InvalidOperationException("Postgres configuration section 'Database:Postgres' is missing or invalid.");
 
+        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]
+            ?? builder.Configuration["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"]
+            ?? builder.Configuration["ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL"];
+        var otlpProtocol = builder.Configuration["OTEL_EXPORTER_OTLP_PROTOCOL"] ?? "http/protobuf";
+        var otlpHeaders = builder.Configuration["OTEL_EXPORTER_OTLP_HEADERS"];
+
         var rabbitMqUsername = builder.AddParameter("rabbitmq-username", rabbitMqOptions.Username);
         var rabbitMqPassword = builder.AddParameter("rabbitmq-password", rabbitMqOptions.Password, secret: true);
         var postgresUsername = builder.AddParameter("postgres-username", postgresOptions.Username);
@@ -54,7 +60,7 @@ public static class Program
 
         var sagaDatabase = postgres.AddDatabase("saga-db", postgresOptions.Database);
 
-        builder.AddProject<Projects.MT_Saga_OrderProcessing_OrderService>("order-service")
+        var orderService = builder.AddProject<Projects.MT_Saga_OrderProcessing_OrderService>("order-service")
             .WithReference(redis)
             .WithReference(rabbitMq)
             .WithReference(sagaDatabase)
@@ -70,15 +76,51 @@ public static class Program
             .WithEnvironment("Cache__Redis__Secure", redisOptions.Secure.ToString())
             .WithEnvironment("Cache__Redis__InstanceName", redisOptions.InstanceName);
 
-        builder.AddProject<Projects.MT_Saga_OrderProcessing_PaymentService>("payment-service")
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            orderService
+                .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otlpEndpoint)
+                .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", otlpProtocol);
+
+            if (!string.IsNullOrWhiteSpace(otlpHeaders))
+            {
+                orderService.WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otlpHeaders);
+            }
+        }
+
+        var paymentService = builder.AddProject<Projects.MT_Saga_OrderProcessing_PaymentService>("payment-service")
             .WithReference(rabbitMq)
             .WaitFor(rabbitMq)
             .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName);
 
-        builder.AddProject<Projects.MT_Saga_OrderProcessing_InventoryService>("inventory-service")
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            paymentService
+                .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otlpEndpoint)
+                .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", otlpProtocol);
+
+            if (!string.IsNullOrWhiteSpace(otlpHeaders))
+            {
+                paymentService.WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otlpHeaders);
+            }
+        }
+
+        var inventoryService = builder.AddProject<Projects.MT_Saga_OrderProcessing_InventoryService>("inventory-service")
             .WithReference(rabbitMq)
             .WaitFor(rabbitMq)
             .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName);
+
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            inventoryService
+                .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otlpEndpoint)
+                .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", otlpProtocol);
+
+            if (!string.IsNullOrWhiteSpace(otlpHeaders))
+            {
+                inventoryService.WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otlpHeaders);
+            }
+        }
 
         await builder.Build().RunAsync().ConfigureAwait(false);
     }

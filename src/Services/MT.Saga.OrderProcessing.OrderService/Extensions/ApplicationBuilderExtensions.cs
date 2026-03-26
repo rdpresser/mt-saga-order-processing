@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
+using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrders;
 
 namespace MT.Saga.OrderProcessing.OrderService.Extensions;
 
@@ -60,6 +61,7 @@ public static class ApplicationBuilderExtensions
         app.UseHttpsRedirection();
 
         CreateOrderEndpoint.Map(app);
+        GetOrdersEndpoint.Map(app);
         GetOrderByIdEndpoint.Map(app);
 
         return app;

@@ -6,6 +6,10 @@ namespace MT.Saga.OrderProcessing.Saga;
 
 public class OrderStateMachine : MassTransitStateMachine<OrderState>
 {
+    private const string ProcessPaymentQueueUri = "queue:orders.process-payment-queue";
+    private const string ReserveInventoryQueueUri = "queue:orders.reserve-inventory-queue";
+    private const string RefundPaymentQueueUri = "queue:orders.refund-payment-queue";
+
     public State PaymentProcessing { get; private set; } = null!;
     public State InventoryReserving { get; private set; } = null!;
     public State Confirmed { get; private set; } = null!;
@@ -30,7 +34,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
         Initially(
             When(OrderCreated)
                 .TransitionTo(PaymentProcessing)
-                .Send(ctx => EventContext.Create(
+                .Send(new Uri(ProcessPaymentQueueUri), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "process-payment",
@@ -45,7 +49,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
         During(PaymentProcessing,
             When(PaymentProcessed)
                 .TransitionTo(InventoryReserving)
-                .Send(ctx => EventContext.Create(
+                .Send(new Uri(ReserveInventoryQueueUri), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "reserve-inventory",
@@ -76,7 +80,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 .Finalize(),
             When(InventoryFailed)
                 .TransitionTo(Cancelled)
-                .Send(ctx => EventContext.Create(
+                .Send(new Uri(RefundPaymentQueueUri), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "refund-payment",

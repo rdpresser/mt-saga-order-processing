@@ -1,6 +1,7 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
 using MT.Saga.OrderProcessing.PaymentService.Consumers;
+using MT.Saga.OrderProcessing.PaymentService.Consumers.Definitions;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
@@ -8,23 +9,12 @@ builder.Services.AddWorkerMassTransit(
     builder.Configuration,
     registerConsumers: x =>
     {
-        x.AddConsumer<ProcessPaymentConsumer>();
-        x.AddConsumer<RefundPaymentConsumer>();
+        x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
+        x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
     },
-    configureReceiveEndpoints: (cfg, context, configuration) =>
-    {
-        cfg.ReceiveEndpoint("process-payment", endpoint =>
-        {
-            endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-            endpoint.ConfigureConsumer<ProcessPaymentConsumer>(context);
-        });
-
-        cfg.ReceiveEndpoint("refund-payment", endpoint =>
-        {
-            endpoint.ConfigureCommonReceiveEndpointPolicies(context, configuration);
-            endpoint.ConfigureConsumer<RefundPaymentConsumer>(context);
-        });
-    });
+    // ConsumerDefinitions carry the endpoint name, retry, kill switch, and EF outbox.
+    // ConfigureEndpoints creates the RabbitMQ endpoint from the definition automatically.
+    configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
 
 var host = builder.Build();
 await host.RunAsync().ConfigureAwait(false);

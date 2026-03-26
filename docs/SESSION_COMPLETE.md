@@ -4,6 +4,8 @@
 **Project:** mt-saga-order-processing  
 **Goal:** Replace reflection-based, monolithic MassTransit config with explicit, modular, well-documented infrastructure
 
+> Historical note (March 25, 2026): this document captures an earlier milestone. Some next steps and assumptions below were superseded by later integration discoveries. For the current authoritative architecture decisions, use `docs/MASSTRANSIT_KB.md` and `docs/REFACTORING_STATUS.md`.
+
 ---
 
 ## 📊 Final Deliverables
@@ -31,7 +33,7 @@
 - **Status:** ✅ COMPLETE & TESTED
 - **Files Created:** 6 modular configuration files
 - **Compilation:** ✅ Release build succeeds
-- **Tests:** ✅ 47/47 unit tests pass
+- **Tests at that milestone:** ✅ 47/47 unit tests passed
 - **Location:** `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`
 
 **Files:**
@@ -40,10 +42,13 @@
 ✅ SagaOrchestrationMassTransitExtensions.cs  - Main builder extensions
 ✅ CommonMassTransitPoliciesConfiguration.cs  - Centralized resilience policies
 ✅ OrderSagaConfiguration.cs                  - Explicit saga state machine setup
-✅ WorkerReceiveEndpointConfiguration.cs      - Explicit endpoint configuration
 ✅ DatabaseAndPoliciesExtensions.cs           - DB context + options registration
-✅ WorkerServiceConsumersConfiguration.cs     - Consumer registration patterns
 ```
+
+Later cleanup:
+
+- `WorkerReceiveEndpointConfiguration.cs` was removed because it was not part of the active runtime path
+- `WorkerServiceConsumersConfiguration.cs` was removed because it only contained placeholder registration scaffolding
 
 #### Phase 4: Status Documentation (REFACTORING_STATUS.md)
 
@@ -73,9 +78,9 @@ dotnet build -c Release
 Result: ✅ SUCCESS (0 errors, 0 warnings)
 ```
 
-### ⚠️ Note on E2E Tests
+### Historical Note on E2E Tests
 
-E2E tests (3 failures) are failing due to Order Service not becoming healthy in the test fixture - **this is NOT related to the refactoring**. The issue exists in the test infrastructure (FullSagaE2EFixture), not in the MassTransit configuration changes.
+That statement is no longer current. Subsequent debugging found messaging configuration and outbox placement issues that did affect saga progression. Those issues were fixed later and the full suite now passes.
 
 ---
 
@@ -121,20 +126,13 @@ E2E tests (3 failures) are failing due to Order Service not becoming healthy in 
 - PostgreSQL persistence with optimistic concurrency
 - Clear event binding configuration
 
-### 3. Explicit Endpoint Configuration (WorkerReceiveEndpointConfiguration)
+### 3. Worker Endpoint and Registration Pattern
 
-- Per-service receive endpoints
-- `process-payment` → PaymentService
-- `refund-payment` → Compensation flow
-- `reserve-inventory` → InventoryService
-- All with common resilience policies applied
-
-### 4. Consumer Registration Pattern (WorkerServiceConsumers)
-
-- `AddPaymentServiceConsumers()` → explicit extension
-- `AddInventoryServiceConsumers()` → explicit extension
-- No reflection loops
-- Compile-time checked
+- Worker consumer definitions are the active runtime path
+- Endpoint names are declared in the consumer definitions
+- Runtime registration happens explicitly in each worker `Program.cs`
+- `cfg.ConfigureEndpoints(context)` materializes the RabbitMQ endpoints from those definitions
+- Removed placeholder helper files to keep the codebase aligned with the actual runtime path
 
 ---
 
@@ -150,14 +148,17 @@ services.AddOrderSagaMassTransit(configuration);
 services.AddSagaOrchestrationMassTransit(configuration);
 ```
 
-### Worker Services (READY FOR IMPLEMENTATION)
+### Worker Services (Current Runtime Pattern)
 
 ```csharp
-// Pattern ready for PaymentService Program.cs:
-services.AddWorkerServiceMassTransit(configuration);
-// Then register consumers:
-services.GetRequiredService<IRegistrationConfigurator>()
-    .AddPaymentServiceConsumers();
+services.AddWorkerMassTransit(
+   configuration,
+   registerConsumers: x =>
+   {
+      x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
+      x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
+   },
+   configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
 ```
 
 ---
@@ -178,16 +179,16 @@ services.GetRequiredService<IRegistrationConfigurator>()
 
 ## 🚀 Future Roadmap
 
-### Immediate (Next Session)
+### Immediate (Superseded)
 
-- [ ] Implement EventContext wrapper removal from OrderStateMachine
-- [ ] Implement worker service consumers (PaymentService, InventoryService)
-- [ ] Update README with new patterns
+- [x] Keep `EventContext<T>` and document why
+- [x] Implement worker service consumers and definitions
+- [ ] Update README with current patterns
 
 ### Short-term
 
-- [ ] Complete consumer registrations (replace placeholders)
-- [ ] Add E2E test fixes (test fixture healthcheck issue)
+- [x] Remove leftover placeholder registration scaffolding
+- [x] Resolve E2E/integration regressions caused by routing and outbox placement
 - [ ] Update copilot-instructions with MassTransit patterns
 
 ### Medium-term
@@ -221,11 +222,11 @@ services.GetRequiredService<IRegistrationConfigurator>()
 
 ## ✨ Key Achievements
 
-✅ **Zero Breaking Changes** - All unit tests pass (47/47)  
-✅ **Clean Build** - Release build succeeds with zero errors  
+✅ **Zero Breaking Changes at the milestone** - All unit tests passed at that time  
+✅ **Clean Build** - Current release build succeeds with zero errors  
 ✅ **Explicit Configuration** - No reflection magic in new code  
 ✅ **Well Documented** - Every class, method, decision explained  
-✅ **Future-Ready** - Pattern established for worker service onboarding  
+✅ **Future-Ready** - Pattern established for worker service onboarding, with current decisions preserved in the KB  
 ✅ **Production-Quality** - All critical C# errors fixed, code quality warnings only
 
 ---

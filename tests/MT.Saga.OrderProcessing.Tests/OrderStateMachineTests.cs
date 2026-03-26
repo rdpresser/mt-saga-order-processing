@@ -9,6 +9,7 @@ using MT.Saga.OrderProcessing.InventoryService.Consumers;
 using MT.Saga.OrderProcessing.PaymentService.Consumers;
 using MT.Saga.OrderProcessing.Saga;
 using Shouldly;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 
 namespace MT.Saga.OrderProcessing.Tests;
 
@@ -146,9 +147,9 @@ public class OrderStateMachineTests
 
     private static ServiceProvider BuildHarnessProvider(bool useFailingInventoryConsumer, bool useFailingPaymentConsumer = false)
     {
-        EndpointConvention.Map<EventContext<ProcessPayment>>(new Uri("queue:process-payment"));
-        EndpointConvention.Map<EventContext<ReserveInventory>>(new Uri("queue:reserve-inventory"));
-        EndpointConvention.Map<EventContext<RefundPayment>>(new Uri("queue:refund-payment"));
+        // Use the shared idempotent registration so unit tests and E2E tests
+        // can coexist in the same test process without conflicting convention state.
+        RabbitMqTransportConfiguration.RegisterCommandEndpointConventions();
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -168,7 +169,7 @@ public class OrderStateMachineTests
                 x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerTestDefinition>();
             }
 
-            x.AddConsumer<RefundPaymentConsumer>();
+            x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerTestDefinition>();
 
             if (useFailingInventoryConsumer)
             {
@@ -217,7 +218,7 @@ public class OrderStateMachineTests
         [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public FailingProcessPaymentConsumerDefinition()
         {
-            EndpointName = "process-payment";
+            EndpointName = OrderMessagingTopology.Queues.ProcessPayment;
         }
     }
 
@@ -226,7 +227,7 @@ public class OrderStateMachineTests
         [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public ProcessPaymentConsumerTestDefinition()
         {
-            EndpointName = "process-payment";
+            EndpointName = OrderMessagingTopology.Queues.ProcessPayment;
         }
     }
 
@@ -235,7 +236,7 @@ public class OrderStateMachineTests
         [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public ReserveInventoryConsumerTestDefinition()
         {
-            EndpointName = "reserve-inventory";
+            EndpointName = OrderMessagingTopology.Queues.ReserveInventory;
         }
     }
 
@@ -244,7 +245,16 @@ public class OrderStateMachineTests
         [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
         public FailingReserveInventoryConsumerDefinition()
         {
-            EndpointName = "reserve-inventory";
+            EndpointName = OrderMessagingTopology.Queues.ReserveInventory;
+        }
+    }
+
+    private sealed class RefundPaymentConsumerTestDefinition : ConsumerDefinition<RefundPaymentConsumer>
+    {
+        [SuppressMessage("Major Code Smell", "S1144:Unused private types or members should be removed", Justification = "Instantiated indirectly by MassTransit when registering consumer definitions in tests.")]
+        public RefundPaymentConsumerTestDefinition()
+        {
+            EndpointName = OrderMessagingTopology.Queues.RefundPayment;
         }
     }
 }

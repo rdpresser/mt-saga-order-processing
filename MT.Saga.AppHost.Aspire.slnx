@@ -1,7 +1,7 @@
 <Solution>
   <Folder Name="/apphost-aspire/">
-    <Project Path="src/MT.Saga.AppHost.Aspire/MT.Saga.AppHost.Aspire.csproj" />
     <Project Path="src/MT.Saga.AppHost.Aspire.ServiceDefaults/MT.Saga.AppHost.Aspire.ServiceDefaults.csproj" />
+    <Project Path="src/MT.Saga.AppHost.Aspire/MT.Saga.AppHost.Aspire.csproj" />
   </Folder>
   <Folder Name="/solution-items/">
     <File Path=".editorconfig" />
@@ -11,6 +11,13 @@
     <File Path="Directory.Packages.props" />
     <File Path="global.json" />
     <File Path="README.md" />
+  </Folder>
+  <Folder Name="/solution-items/docs/">
+    <File Path="docs/E2E_FIXTURE_ISSUE.md" />
+    <File Path="docs/MASSTRANSIT_KB.md" />
+    <File Path="docs/REFACTORING_PLAN.md" />
+    <File Path="docs/REFACTORING_STATUS.md" />
+    <File Path="docs/SESSION_COMPLETE.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/MT.Saga.OrderProcessing.Contracts/MT.Saga.OrderProcessing.Contracts.csproj" />

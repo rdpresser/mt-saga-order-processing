@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using Serilog.Formatting.Compact;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -22,6 +23,13 @@ public static class Extensions
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
+        var useCompactJsonConsole = builder.Configuration.GetValue<bool?>("Logging:Console:UseCompactJson")
+            ?? !builder.Environment.IsDevelopment();
+        var hasConfiguredSerilogSinks = builder.Configuration
+            .GetSection("Serilog:WriteTo")
+            .GetChildren()
+            .Any();
+
         builder.Services.AddSerilog((services, loggerConfiguration) =>
         {
             loggerConfiguration
@@ -30,8 +38,21 @@ public static class Extensions
                 .Enrich.FromLogContext()
                 .Enrich.With<TraceContextEnricher>()
                 .Enrich.WithProperty("service.name", builder.Environment.ApplicationName)
-                .Enrich.WithProperty("deployment.environment", builder.Environment.EnvironmentName)
-                .WriteTo.Console();
+                .Enrich.WithProperty("deployment.environment", builder.Environment.EnvironmentName);
+
+            // Add a default console sink only when no sink is configured in appsettings.
+            // This prevents duplicate log events when users configure Serilog:WriteTo (for example, Console + OTLP).
+            if (!hasConfiguredSerilogSinks)
+            {
+                if (useCompactJsonConsole)
+                {
+                    loggerConfiguration.WriteTo.Console(new RenderedCompactJsonFormatter());
+                }
+                else
+                {
+                    loggerConfiguration.WriteTo.Console();
+                }
+            }
         });
 
         builder.ConfigureOpenTelemetry();
@@ -155,6 +176,17 @@ public static class Extensions
     private static Uri? ResolveOtlpEndpoint(IConfiguration configuration)
     {
         var endpointValue = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+
+        // When running under Aspire, OTLP endpoint can be exposed through dashboard-specific env vars.
+        // Use them as fallback to avoid hard dependencies on manual OTEL_* configuration.
+        if (string.IsNullOrWhiteSpace(endpointValue))
+        {
+            endpointValue = configuration["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"]
+                ?? configuration["ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL"];
+        }
+
+        endpointValue = NormalizeOtlpBaseEndpoint(endpointValue);
+
         return Uri.TryCreate(endpointValue, UriKind.Absolute, out var endpoint)
             ? endpoint
             : null;
@@ -166,5 +198,30 @@ public static class Extensions
         return string.Equals(protocol, "grpc", StringComparison.OrdinalIgnoreCase)
             ? OtlpExportProtocol.Grpc
             : OtlpExportProtocol.HttpProtobuf;
+    }
+
+    private static string? NormalizeOtlpBaseEndpoint(string? endpointValue)
+    {
+        if (string.IsNullOrWhiteSpace(endpointValue))
+        {
+            return endpointValue;
+        }
+
+        var normalized = endpointValue.Trim();
+
+        // OTLP SDK expects a base endpoint for multi-signal exporters.
+        // If a signal-specific path is provided, trim to base to keep logs/traces/metrics working together.
+        var suffixes = new[] { "/v1/logs", "/v1/traces", "/v1/metrics" };
+        var suffixIndex = Array.FindIndex(
+            suffixes,
+            suffix => normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+
+        if (suffixIndex >= 0)
+        {
+            var suffix = suffixes[suffixIndex];
+            normalized = normalized[..^suffix.Length];
+        }
+
+        return normalized.TrimEnd('/');
     }
 }

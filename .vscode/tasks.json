@@ -1,0 +1,91 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "projector-regression-test",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj",
+				"-c",
+				"Release",
+				"--no-build",
+				"--filter",
+				"FullyQualifiedName~OrderReadModelProjectorConsumerTests",
+				"--logger",
+				"console;verbosity=minimal"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "projector-regression-test-2",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj",
+				"-c",
+				"Release",
+				"--filter",
+				"FullyQualifiedName~OrderReadModelProjectorConsumerTests",
+				"--logger",
+				"console;verbosity=minimal"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "projector-regression-test-clean",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj",
+				"-c",
+				"Release",
+				"--no-build",
+				"--filter",
+				"FullyQualifiedName~OrderReadModelProjectorConsumerTests"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "projector-regression-test-final",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj",
+				"-c",
+				"Release",
+				"--filter",
+				"FullyQualifiedName~OrderReadModelProjectorConsumerTests"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "projector-regression-test-final-2",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj",
+				"-c",
+				"Release",
+				"--filter",
+				"FullyQualifiedName~OrderReadModelProjectorConsumerTests"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

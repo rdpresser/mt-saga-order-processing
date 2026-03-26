@@ -27,11 +27,11 @@ public static class TopicFanoutMassTransitExtensions
         if (string.IsNullOrWhiteSpace(entity)) throw new ArgumentException("Entity cannot be empty.", nameof(entity));
         if (string.IsNullOrWhiteSpace(exchangeName)) throw new ArgumentException("Exchange name cannot be empty.", nameof(exchangeName));
 
-        var bindingKey = TopicRoutingKeyHelper.GenerateWildcardBindingKey(sourceService, entity);
-
         endpoint.Bind(exchangeName, bind =>
         {
-            bind.RoutingKey = bindingKey;
+            // Use topic wildcard fan-in for order events to avoid cross-service routing-key drift
+            // while still preserving topic-based filtering.
+            bind.RoutingKey = TopicRoutingKeyHelper.GenerateWildcardBindingKey(sourceService, entity);
             bind.ExchangeType = "topic";
         });
     }

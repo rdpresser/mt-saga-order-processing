@@ -34,10 +34,7 @@ public static class EventContextPublishExtensions
                 await publishEndpoint
                     .Publish(eventContext, context =>
                     {
-                        if (context is RabbitMqSendContext rabbitMqSendContext)
-                        {
-                            rabbitMqSendContext.RoutingKey = routingKey;
-                        }
+                        context.SetRoutingKey(routingKey);
                     }, cancellationToken)
                     .ConfigureAwait(false);
                 return;

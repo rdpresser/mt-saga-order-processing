@@ -27,7 +27,7 @@ public static class OrderSagaConfiguration
         this IRegistrationConfigurator cfg,
         IConfiguration configuration)
     {
-        cfg.AddSagaStateMachine<OrderStateMachine, OrderState>()
+        cfg.AddSagaStateMachine<OrderStateMachine, OrderState, OrderStateDefinition>()
             .EntityFrameworkRepository(r =>
             {
                 // PostgreSQL optimistic concurrency using xmin system column
@@ -44,25 +44,22 @@ public static class OrderSagaConfiguration
     }
 
     /// <summary>
-    /// Configures the saga receive endpoint with:
-    /// - Common resilience policies (retry, outbox, kill switch)
-    /// - Event binding (OrderCreated, PaymentProcessed, etc.)
-    /// - Saga behavior configuration
+    /// Configures the saga receive endpoint with event exchange binding.
+    /// All endpoint policies (retry, kill switch, partitioner) are declared
+    /// in <see cref="OrderStateDefinition"/> and applied via ConfigureSaga.
     /// </summary>
     public static void ConfigureOrderSagaReceiveEndpoint(
         this IRabbitMqBusFactoryConfigurator busConfigurator,
-        IRegistrationContext context,
-        CommonMassTransitPoliciesConfiguration.MessagingPoliciesOptions policyOptions)
+        IRegistrationContext context)
     {
-        busConfigurator.ReceiveEndpoint("order-saga", endpoint =>
+        busConfigurator.ReceiveEndpoint(OrderMessagingTopology.Queues.Saga, endpoint =>
         {
-            // Apply common resilience policies
-            endpoint.ConfigureCommonReceiveEndpointPolicies(context, policyOptions);
-
-            // Configure saga event consumption from events exchange
+            // Bind this queue to the shared events topic exchange.
+            // All order domain events arrive here so the saga can process them.
             endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
 
-            // Register saga with endpoint
+            // ConfigureSaga will invoke OrderStateDefinition.ConfigureSaga which applies
+            // retry, kill switch, and partitioned concurrency.
             endpoint.ConfigureSaga<OrderState>(context);
         });
     }

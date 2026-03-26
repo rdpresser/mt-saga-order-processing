@@ -1,11 +1,11 @@
-# MassTransit Configuration Refactoring - Session Status
+# MassTransit Configuration Refactoring - Status
 
-**Last Updated:** $(date)  
-**Objective:** Replace reflection-based, monolithic MassTransit config with explicit, modular, well-documented configuration system.
+**Last Updated:** March 25, 2026  
+**Objective:** Keep the MassTransit configuration explicit, modular, and aligned with the validated runtime behavior of the solution.
 
 ---
 
-## Completed in This Session
+## Current Validated State
 
 ### ✅ Documentation
 
@@ -13,6 +13,7 @@
    - Comprehensive knowledge base from 28 official documentation URLs
    - Best practices, do's/don'ts
    - Explained: prefetch rationale, outbox pattern, saga state machine, consumers, retry policies
+   - Repository decisions documented: queue naming, explicit queue URI routing, producer interface rules, outbox placement decisions, major discoveries from integration fixes
 
 2. **REFACTORING_PLAN.md**
    - 5 issues identified with detailed analysis
@@ -25,77 +26,63 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 
 - `CommonMassTransitPoliciesConfiguration.cs` - Centralized resilience policies (prefetch, retry, kill switch, outbox)
 - `OrderSagaConfiguration.cs` - Explicit saga state machine + endpoint setup
-- `WorkerServiceConsumersConfiguration.cs` - Pattern for explicit consumer registration
 - `SagaOrchestrationMassTransitExtensions.cs` - Main builder extensions
 - `DatabaseAndPoliciesExtensions.cs` - DB context and options registration
-- `WorkerReceiveEndpointConfiguration.cs` - Worker service endpoint setup
 
 ### ✅ Modular Design
 
 - No reflection in new classes
-- Explicit method chains: `services.AddSagaOrchestrationMassTransit(...).AddPaymentServiceConsumers().AddInventoryServiceConsumers()`
+- Consumer definitions are the active runtime registration mechanism for worker endpoints
+- Worker services register consumers explicitly in each `Program.cs` and materialize endpoints via `cfg.ConfigureEndpoints(context)`
+- Unused placeholder helper files were removed to keep code and docs aligned
 - Configuration sections documented: `Messaging:RabbitMq`, `Messaging:Policies`, `Messaging:Database`
 - Observers registered for logging (LoggingConsumeObserver, LoggingPublishObserver)
 
----
+### ✅ Integration Fixes Validated
 
-## Pending Tasks
+1. **Saga orchestration service does not use bus outbox**
+   - `AddEntityFrameworkOutbox` removed from `AddSagaOrchestrationMassTransit`
+   - prevents HTTP-originated `OrderCreated` messages from being trapped without `SaveChanges`
 
-### 🔴 BLOCKING: Integration & Compilation
+2. **Saga receive endpoint does not use EF endpoint outbox**
+   - `UseEntityFrameworkOutbox` removed from `OrderStateDefinition.ConfigureSaga`
+   - prevents saga command sends from being buffered and never reaching workers in the integration runtime shape
 
-1. **Update Order Service Program.cs**
-   - Remove old: `services.AddOrderSagaMassTransit(...)`
-   - Add new: `services.AddSagaOrchestrationMassTransit(configuration, connectionString)`
-   - Verify compilation
+3. **Worker services keep EF outbox + bus outbox**
+   - durable publish behavior remains active where consumers have a real transactional boundary
 
-2. **Update appsettings.json** (if not already present)
-   - Add `Messaging:RabbitMq:Host`, `Port`, `UserName`, `Password`, `VirtualHost`
-   - Add `Messaging:Policies:PrefetchCount`, `ConcurrentMessageLimit`, `RetryAttempts`, `RetryInitialInterval`
-   - Add `Messaging:Database:ConnectionString` or ensure `ConnectionStrings:SagaDb` exists
+4. **Read-model projector remains retry-only**
+   - no inbox/outbox middleware on projector endpoint
+   - avoids projection gaps caused by deduplication suppressing deliveries
 
-3. **Run tests**
-   - Verify: `dotnet build` succeeds
-   - Verify: `dotnet test` passes (saga orchestration still works)
-   - Check: PaymentService and InventoryService still subscribe to events
+5. **Command routing from saga is explicit**
+   - saga uses `queue:orders.process-payment-queue`, `queue:orders.reserve-inventory-queue`, and `queue:orders.refund-payment-queue`
+   - reduces dependence on static `EndpointConvention` state in tests
 
-### 🟡 MEDIUM: EventContext Wrapper Removal
+6. **Queue naming uses topology constants**
+   - `OrderMessagingTopology.Queues.*` is the source of truth
+   - raw endpoint strings such as `"process-payment"` are considered drift and should be replaced
 
-4. **Simplify OrderStateMachine.cs**
-   - Replace: `Event<EventContext<OrderCreated>>` → `Event<OrderCreated>`
-   - Remove: `EventContext.Create()` boilerplate (10+ parameter calls)
-   - Simplify Send/Publish: Direct payload instead of wrapping
-   - Benefits: ~50 lines removed, idiomatic MassTransit, clearer intent
-
-### 🟡 MEDIUM: Worker Service Consumer Implementation
-
-5. **Payment Service (PaymentService project)**
-   - Create `ProcessPaymentConsumer` consumer
-   - Create `RefundPaymentConsumer` consumer
-   - Register via `AddPaymentServiceConsumers()` in Payment Service Program.cs
-
-6. **Inventory Service (InventoryService project)**
-   - Create `ReserveInventoryConsumer` consumer
-   - Register via `AddInventoryServiceConsumers()` in Inventory Service Program.cs
-
-7. **Remove old reflection-based registration**
-   - Delete: Old `AddWorkerMassTransit(params Type[] consumerTypes)` method from monolithic extension
-   - Delete: `ResolveWorkerEndpointName()` switch statement
-
-### 🟢 NICE-TO-HAVE: Documentation Updates
-
-8. **Update README.md**
-   - Document new configuration sections
-   - Show example: how to add new service consumers
-   - Link to MASSTRANSIT_KB.md for reference
-
-9. **Update copilot-instructions.md**
-   - Add MassTransit best practices section
-   - Reference explicit configuration pattern
-   - Document consumer registration conventions
+7. **Full regression suite is green**
+   - `dotnet test -c Release` passes with 58/58 tests
 
 ---
 
-## Configuration Schema (Expected appsettings.json)
+## Documentation Rules Going Forward
+
+1. When a major messaging discovery is validated, document it in `docs/MASSTRANSIT_KB.md`.
+2. Keep this status file aligned with the real runtime architecture, not with superseded intermediary plans.
+3. Do not leave placeholder patterns documented as active runtime behavior if the actual registration path differs.
+4. Queue names, outbox placement, and routing authority changes must be reflected in docs in the same task.
+
+---
+
+## Open Follow-Up Items
+
+1. Review older planning docs that still mention EventContext removal as a target, because the current decision is to keep `EventContext<T>`.
+2. Keep README and other onboarding docs aligned with the validated outbox placement decisions.
+
+## Configuration Schema (Current Reference)
 
 ```json
 {
@@ -129,15 +116,14 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 
 ## Validation Checklist
 
-- [ ] All configuration files created without compilation errors
-- [ ] Order Service Program.cs updated to use new extensions
-- [ ] `dotnet build` succeeds
-- [ ] All tests pass (OrderStateMachine, compensation flow, idempotency)
-- [ ] Payment Service Program.cs uses `AddPaymentServiceConsumers()`
-- [ ] Inventory Service Program.cs uses `AddInventoryServiceConsumers()`
-- [ ] No reflection visible in consumer registration
-- [ ] EventContext wrapper removed from OrderStateMachine
-- [ ] New configuration documented in README
+- [x] Current configuration files compile
+- [x] `dotnet build` succeeds
+- [x] `dotnet test -c Release` passes
+- [x] Worker services use explicit consumer registration with consumer definitions
+- [x] Queue names are centralized in `OrderMessagingTopology.Queues`
+- [x] Major outbox discoveries are documented in the KB
+- [x] Remove unused placeholder helper files
+- [ ] Review older docs for stale migration notes
 
 ---
 
@@ -146,9 +132,9 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 ✅ **Explicit** - No magic reflection; methods clearly show what's registered  
 ✅ **Modular** - Consumer registration per service; policies centralized; endpoints explicit  
 ✅ **Documented** - XML docs on every public method; configuration sections explained  
-✅ **Chainable** - Fluent API for consumer registration (`.AddPaymentServiceConsumers().AddInventoryServiceConsumers()`)  
+✅ **Explicit Runtime Wiring** - Worker `Program.cs` files register concrete consumers and let definitions create endpoints  
 ✅ **Testable** - No static state; all config passed via DI  
-✅ **Future-Ready** - Easy to add new services: create new extension method in `WorkerServiceConsumerExtensions`
+✅ **Future-Ready** - Easy to add new services: either add new consumer definitions or implement service-specific registration extensions when they become real runtime entry points
 
 ---
 
@@ -161,18 +147,8 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 
 ---
 
-## Next Immediate Action
+## Status Summary
 
-1. Open Order Service **Program.cs**
-2. Find line with `services.AddOrderSagaMassTransit(...)`
-3. Replace with: `services.AddSagaOrchestrationMassTransit(configuration, builder.Configuration["ConnectionStrings:SagaDb"]!)`
-4. Verify it compiles: `dotnet build`
-5. Run tests: `dotnet test`
-
-After verification, proceed with worker service updates and EventContext wrapper removal.
-
----
-
-**Status:** 🟡 **In Progress** - Configuration infrastructure complete; integration pending  
-**Complexity:** Medium - Mostly mechanical integration; no complex rewrites at this point  
-**Risk Level:** Low - Old code remains until explicitly replaced; can roll back easily
+**Status:** ✅ **Validated** - Core configuration and runtime behavior are aligned with the passing test suite  
+**Complexity:** Medium - Main work now is preventing documentation drift and cleaning leftover scaffolding  
+**Risk Level:** Medium - Messaging docs can become misleading quickly if future discoveries are not recorded immediately

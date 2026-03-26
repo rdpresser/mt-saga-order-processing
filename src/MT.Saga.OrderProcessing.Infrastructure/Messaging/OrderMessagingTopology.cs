@@ -7,6 +7,20 @@ public static class OrderMessagingTopology
     public const string SourceService = "orders";
     public const string EntityName = "order";
 
+    /// <summary>
+    /// Canonical queue names for all receive endpoints.
+    /// Pattern: {domain}.{purpose}-queue
+    /// Suffix "-queue" avoids name collisions with exchanges in the same broker.
+    /// </summary>
+    public static class Queues
+    {
+        public const string Saga = "orders.saga-queue";
+        public const string ReadModel = "orders.read-model-queue";
+        public const string ProcessPayment = "orders.process-payment-queue";
+        public const string RefundPayment = "orders.refund-payment-queue";
+        public const string ReserveInventory = "orders.reserve-inventory-queue";
+    }
+
     public static class Actions
     {
         public const string Created = "created";

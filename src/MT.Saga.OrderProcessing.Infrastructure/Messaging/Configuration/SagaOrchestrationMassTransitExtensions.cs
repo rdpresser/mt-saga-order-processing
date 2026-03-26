@@ -5,7 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers.Definitions;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Observers;
+using MT.Saga.OrderProcessing.Infrastructure.Persistence;
+using System.Threading;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 
@@ -25,7 +29,6 @@ public static class RabbitMqTransportConfiguration
     {
         var options = RabbitMqHelper.Build(configuration);
 
-        // Normalize virtual host path
         var virtualHost = string.IsNullOrWhiteSpace(options.VirtualHost) || options.VirtualHost == "/"
             ? string.Empty
             : options.VirtualHost.TrimStart('/');
@@ -48,15 +51,23 @@ public static class RabbitMqTransportConfiguration
     public static void ConfigureOrderTopologyPublishing(
         this IRabbitMqBusFactoryConfigurator cfg)
     {
-        // Configure published events (fanout exchanges)
-        cfg.Publish<OrderCreated>(x => x.ExchangeType = "fanout");
-        cfg.Publish<PaymentProcessed>(x => x.ExchangeType = "fanout");
-        cfg.Publish<PaymentFailed>(x => x.ExchangeType = "fanout");
-        cfg.Publish<InventoryReserved>(x => x.ExchangeType = "fanout");
-        cfg.Publish<InventoryFailed>(x => x.ExchangeType = "fanout");
-        cfg.Publish<OrderConfirmed>(x => x.ExchangeType = "fanout");
-        cfg.Publish<OrderCancelled>(x => x.ExchangeType = "fanout");
+        ConfigureTopicEnvelope<OrderCreated>(cfg);
+        ConfigureTopicEnvelope<PaymentProcessed>(cfg);
+        ConfigureTopicEnvelope<PaymentFailed>(cfg);
+        ConfigureTopicEnvelope<InventoryReserved>(cfg);
+        ConfigureTopicEnvelope<InventoryFailed>(cfg);
+        ConfigureTopicEnvelope<OrderConfirmed>(cfg);
+        ConfigureTopicEnvelope<OrderCancelled>(cfg);
     }
+
+    private static void ConfigureTopicEnvelope<TPayload>(IRabbitMqBusFactoryConfigurator cfg)
+        where TPayload : class
+    {
+        cfg.Message<EventContext<TPayload>>(x => x.SetEntityName(OrderMessagingTopology.ExchangeName));
+        cfg.Publish<EventContext<TPayload>>(x => x.ExchangeType = "topic");
+    }
+
+    private static int _conventionsRegisteredFlag;
 
     /// <summary>
     /// Registers endpoint conventions for command routing.
@@ -64,11 +75,12 @@ public static class RabbitMqTransportConfiguration
     /// </summary>
     public static void RegisterCommandEndpointConventions()
     {
-        // Commands are sent directly to their processing endpoints
-        // (not published, not through exchanges)
-        EndpointConvention.Map<ProcessPayment>(new Uri("queue:process-payment"));
-        EndpointConvention.Map<ReserveInventory>(new Uri("queue:reserve-inventory"));
-        EndpointConvention.Map<RefundPayment>(new Uri("queue:refund-payment"));
+        if (Interlocked.Exchange(ref _conventionsRegisteredFlag, 1) == 1)
+            return;
+
+        EndpointConvention.Map<EventContext<ProcessPayment>>(new Uri($"queue:{OrderMessagingTopology.Queues.ProcessPayment}"));
+        EndpointConvention.Map<EventContext<ReserveInventory>>(new Uri($"queue:{OrderMessagingTopology.Queues.ReserveInventory}"));
+        EndpointConvention.Map<EventContext<RefundPayment>>(new Uri($"queue:{OrderMessagingTopology.Queues.RefundPayment}"));
     }
 }
 
@@ -78,112 +90,65 @@ public static class RabbitMqTransportConfiguration
 /// </summary>
 public static class SagaOrchestrationMassTransitExtensions
 {
-    /// <summary>
-    /// Registers all saga orchestration MassTransit components:
-    /// - Saga state machine (OrderStateMachine)
-    /// - RabbitMQ transport configuration
-    /// - Common resilience policies (retry, outbox, kill switch)
-    /// - Observers (logging)
-    /// - Endpoint conventions (command routing)
-    /// </summary>
     public static IServiceCollection AddSagaOrchestrationMassTransit(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register database context
         services.AddOrderProcessingDbContext(configuration);
-
-        // Register policies options
         services.AddMassTransitPoliciesOptions(configuration);
-
-        // Register logging observers
         services.AddSingleton<LoggingConsumeObserver>();
         services.AddSingleton<LoggingPublishObserver>();
 
-        // Register MassTransit with explicit configuration
         services.AddMassTransit(x =>
         {
-            // 1. Register saga state machine with PostgreSQL persistence
             x.AddOrderSagaStateMachine(configuration);
+            x.AddConsumer<OrderReadModelProjectorConsumer, OrderReadModelProjectorConsumerDefinition>();
 
-            // 2. Configure RabbitMQ transport
             x.UsingRabbitMq((context, cfg) =>
             {
-                // Get policies from configuration
-                var policyOptions = context.GetRequiredService<IOptions<CommonMassTransitPoliciesConfiguration.MessagingPoliciesOptions>>()
-                    .Value;
-
-                // Configure RabbitMQ host connection
                 cfg.ConfigureRabbitMqHost(configuration);
-
-                // Connect logging observers
                 cfg.ConnectConsumeObserver(context.GetRequiredService<LoggingConsumeObserver>());
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
-
-                // Configure topology
                 cfg.ConfigureOrderTopologyPublishing();
 
-                // Configure saga receive endpoint
-                cfg.ConfigureOrderSagaReceiveEndpoint(context, policyOptions);
+                cfg.ConfigureOrderSagaReceiveEndpoint(context);
+
+                cfg.ReceiveEndpoint(OrderMessagingTopology.Queues.ReadModel, endpoint =>
+                {
+                    endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
+                    endpoint.ConfigureConsumer<OrderReadModelProjectorConsumer>(context);
+                });
             });
         });
 
-        // Register command routing conventions
         RabbitMqTransportConfiguration.RegisterCommandEndpointConventions();
 
         return services;
     }
 
-    /// <summary>
-    /// Registers worker service MassTransit components.
-    /// Explicit consumer registration (no reflection).
-    ///
-    /// Usage in worker service Program.cs:
-    ///     services.AddWorkerServiceMassTransit(configuration);
-    ///     // Then in the same scope or in Program.cs:
-    ///     var registrar = services.BuildServiceProvider().GetRequiredService<IRegistrationConfigurator>();
-    ///     registrar.AddPaymentServiceConsumers();
-    ///     registrar.AddInventoryServiceConsumers();
-    /// </summary>
     public static IServiceCollection AddWorkerServiceMassTransit(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register database context
         services.AddOrderProcessingDbContext(configuration);
-
-        // Register policies options
         services.AddMassTransitPoliciesOptions(configuration);
-
-        // Register logging observers
         services.AddSingleton<LoggingConsumeObserver>();
         services.AddSingleton<LoggingPublishObserver>();
 
-        // Configure MassTransit
         services.AddMassTransit(x =>
         {
-            // Configure RabbitMQ transport
+            x.AddEntityFrameworkOutbox<OrderSagaDbContext>(o =>
+            {
+                o.QueryDelay = TimeSpan.FromSeconds(1);
+                o.UseBusOutbox();
+            });
+
             x.UsingRabbitMq((context, cfg) =>
             {
-                // Get policies from configuration
-                var policyOptions = context.GetRequiredService<IOptions<CommonMassTransitPoliciesConfiguration.MessagingPoliciesOptions>>()
-                    .Value;
-
-                // Configure RabbitMQ host connection
                 cfg.ConfigureRabbitMqHost(configuration);
-
-                // Connect logging observers
                 cfg.ConnectConsumeObserver(context.GetRequiredService<LoggingConsumeObserver>());
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
-
-                // Configure topology
                 cfg.ConfigureOrderTopologyPublishing();
-
-                // Configure receive endpoints for each consumer service
-                // (Consumers are registered separately via AddPaymentServiceConsumers(), etc.)
-                cfg.ConfigurePaymentProcessingReceiveEndpoint(context, policyOptions);
-                cfg.ConfigureRefundPaymentReceiveEndpoint(context, policyOptions);
-                cfg.ConfigureReserveInventoryReceiveEndpoint(context, policyOptions);
             });
         });
 
