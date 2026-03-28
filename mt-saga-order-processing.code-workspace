@@ -4,9 +4,6 @@
 			"path": "."
 		},
 		{
-			"path": "../tc-agro-solutions"
-		},
-		{
 			"path": "references"
 		}
 	],

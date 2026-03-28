@@ -32,6 +32,7 @@ namespace MT.Saga.OrderProcessing.Tests.E2E.Abstractions;
 public sealed class FullSagaE2EFixture : IAsyncLifetime
 {
     private const string DatabaseName = "mt_saga_order_processing_e2e";
+    private static readonly TimeSpan WorkerStartupStabilizationDelay = TimeSpan.FromSeconds(3);
 
     private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("postgres")
@@ -164,7 +165,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         }
 
         _inventoryWorkerHost = await StartInventoryWorkerAsync(cancellationToken);
-        await Task.Delay(500, cancellationToken);
+        await Task.Delay(WorkerStartupStabilizationDelay, cancellationToken);
     }
 
     public async Task StopPaymentWorkerAsync(CancellationToken cancellationToken)
@@ -193,7 +194,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         }
 
         _paymentWorkerHost = await StartPaymentWorkerAsync(cancellationToken);
-        await Task.Delay(500, cancellationToken);
+        await Task.Delay(WorkerStartupStabilizationDelay, cancellationToken);
     }
 
     public async Task RestartWorkersAsync(CancellationToken cancellationToken)
@@ -202,6 +203,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         await StopInventoryWorkerAsync(cancellationToken);
         await EnsurePaymentWorkerStartedAsync(cancellationToken);
         await EnsureInventoryWorkerStartedAsync(cancellationToken);
+        await Task.Delay(WorkerStartupStabilizationDelay, cancellationToken);
     }
 
     public async Task<HttpStatusCode> GetOrderStatusCodeAsync(Guid orderId, CancellationToken cancellationToken)
