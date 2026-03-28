@@ -58,6 +58,7 @@ public sealed class FullSagaE2ETests
 
         var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
         byId.ShouldNotBeNull();
+        byId.OrderId.ShouldBe(orderId);
         byId.Status.ShouldBe("Confirmed");
 
         var allOrders = await _fixture.GetOrdersAsync(1, 100, ct);
@@ -74,21 +75,11 @@ public sealed class FullSagaE2ETests
         {
             var orderId = await _fixture.CreateOrderAsync(95.20m, $"payment-failed-{Guid.NewGuid():N}@example.com", ct);
 
-            var timeout = TimeSpan.FromSeconds(120);
-            var started = DateTimeOffset.UtcNow;
-            var finalized = false;
-
-            while (DateTimeOffset.UtcNow - started < timeout)
-            {
-                await _fixture.PublishPaymentFailedAsync(orderId, ct);
-                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(10), ct);
-                if (finalized)
-                {
-                    break;
-                }
-
-                await Task.Delay(500, ct);
-            }
+            var finalized = await TryFinalizeSagaWithRetriesAsync(
+                orderId,
+                publishFailureAsync: id => _fixture.PublishPaymentFailedAsync(id, ct),
+                timeout: TimeSpan.FromSeconds(120),
+                ct);
 
             finalized.ShouldBeTrue();
 
@@ -97,6 +88,7 @@ public sealed class FullSagaE2ETests
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
             byId.ShouldNotBeNull();
+            byId.OrderId.ShouldBe(orderId);
             byId.Status.ShouldBe("Cancelled");
         }
         finally
@@ -115,21 +107,11 @@ public sealed class FullSagaE2ETests
         {
             var orderId = await _fixture.CreateOrderAsync(95.20m, $"sad-{Guid.NewGuid():N}@example.com", ct);
 
-            var timeout = TimeSpan.FromSeconds(120);
-            var started = DateTimeOffset.UtcNow;
-            var finalized = false;
-
-            while (DateTimeOffset.UtcNow - started < timeout)
-            {
-                await _fixture.PublishInventoryFailedAsync(orderId, ct);
-                finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(10), ct);
-                if (finalized)
-                {
-                    break;
-                }
-
-                await Task.Delay(500, ct);
-            }
+            var finalized = await TryFinalizeSagaWithRetriesAsync(
+                orderId,
+                publishFailureAsync: id => _fixture.PublishInventoryFailedAsync(id, ct),
+                timeout: TimeSpan.FromSeconds(120),
+                ct);
 
             finalized.ShouldBeTrue();
 
@@ -138,6 +120,7 @@ public sealed class FullSagaE2ETests
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
             byId.ShouldNotBeNull();
+            byId.OrderId.ShouldBe(orderId);
             byId.Status.ShouldBe("Cancelled");
         }
         finally
@@ -181,5 +164,29 @@ public sealed class FullSagaE2ETests
         secondById.ShouldNotBeNull();
         firstById.OrderId.ShouldBe(firstOrderId);
         secondById.OrderId.ShouldBe(secondOrderId);
+    }
+
+    private async Task<bool> TryFinalizeSagaWithRetriesAsync(
+        Guid orderId,
+        Func<Guid, Task> publishFailureAsync,
+        TimeSpan timeout,
+        CancellationToken ct)
+    {
+        var started = DateTimeOffset.UtcNow;
+
+        while (DateTimeOffset.UtcNow - started < timeout)
+        {
+            await publishFailureAsync(orderId);
+
+            var finalized = await _fixture.WaitForSagaFinalizedAsync(orderId, TimeSpan.FromSeconds(10), ct);
+            if (finalized)
+            {
+                return true;
+            }
+
+            await Task.Delay(500, ct);
+        }
+
+        return false;
     }
 }

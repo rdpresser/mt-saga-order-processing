@@ -31,6 +31,286 @@ This project is intentionally designed to:
 - Balance clarity vs complexity
 - Be easy to run and evaluate
 
+## Simplicity Boundary (Important)
+
+This repository is intentionally **not** a full DDD implementation with all layered separations.
+
+- Keep the solution simple and study-friendly
+- Prefer pragmatic DDD-light boundaries over heavy abstraction
+- Do not introduce full layered DDD architecture unless explicitly requested
+
+---
+
+# Agent Routing Guide
+
+Use the custom agents under `.github/agents` to select the best execution mode for each request.
+
+## Agent Routing Strategy
+
+When multiple specialized agents are available, always choose the most appropriate one based on the user's primary intent.
+
+### Agent Selection Rules
+
+- Use **Test and Fix** when:
+    - tests are failing
+    - there are regressions or runtime test errors
+    - the goal is system stabilization with minimal safe changes
+
+- Use **Test Generator & Coverage Analyzer** when:
+    - creating a new feature
+    - expanding unit/integration/E2E coverage
+    - identifying missing scenarios and edge cases
+
+- Use **Test Reviewer & Smell Detector** when:
+    - reviewing test quality and maintainability
+    - identifying weak assertions, over-mocking, brittleness, and redundancy
+    - improving confidence without changing feature behavior
+
+- Use **Architecture Consistency Guardian** when:
+    - validating design decisions
+    - checking DDD/CQRS/event-driven consistency
+    - identifying structural or architectural risks
+
+- Use **Runtime Behavior & Contract Validator** when:
+    - comparing expected behavior with real runtime behavior
+    - analyzing telemetry and traces
+    - validating event contracts and producer/consumer compatibility
+
+### Behavior Rules
+
+- If the request clearly maps to one concern, use the corresponding agent.
+- If the request spans multiple concerns, prioritize primary intent first, then optionally apply secondary-agent reasoning.
+- Always prefer the most specialized agent over a generic approach.
+
+### Ambiguity Rule (Mandatory)
+
+If routing is not clear, ask a direct clarification question before proceeding, for example:
+
+- "Should I prioritize fixing failing tests (Test and Fix) or reviewing test quality (Test Reviewer & Smell Detector)?"
+- "Do you want architecture validation (Architecture Consistency Guardian) or runtime contract validation (Runtime Behavior & Contract Validator)?"
+
+## Daily Workflow (Mental Model)
+
+Use this repeatable quality loop:
+
+**IDEA -> TESTS -> CODE -> VALIDATION -> REVIEW -> ARCHITECTURE -> RUNTIME**
+
+Agent mapping:
+
+- **Test Generator & Coverage Analyzer** -> define behavior through tests
+- **Developer implementation** -> implement only what tests require
+- **Test and Fix** -> stabilize failures and regressions
+- **Test Reviewer & Smell Detector** -> harden test quality
+- **Architecture Consistency Guardian** -> validate design consistency
+- **Runtime Behavior & Contract Validator** -> validate against real execution
+
+This is the default operating model for continuous quality engineering.
+
+## VS Code Usage (Operational Steps)
+
+### Step 1: Generate tests first (TDD start)
+
+Prompt:
+
+```text
+/Test Generator & Coverage Analyzer
+
+Feature: <feature name>
+Context:
+- Domain: <domain>
+- Goal: <goal>
+
+Business Rules:
+- <rule 1>
+- <rule 2>
+
+Edge Cases:
+- <edge case 1>
+- <edge case 2>
+
+Goal:
+- Full coverage (unit, integration, e2e)
+- Strong assertions
+- Behavior-focused scenarios
+
+Important:
+- Do not generate implementation
+- Tests should fail initially (TDD)
+```
+
+### Step 2: Implement minimally
+
+Implement the smallest amount of code needed to satisfy the tests.
+
+### Step 3: Stabilize failing tests
+
+Prompt:
+
+```text
+/Test and Fix
+
+Context:
+- Feature: <feature name>
+- Test project: MT.Saga.OrderProcessing.Tests.csproj
+
+Problem:
+- Tests are failing after implementation
+
+Done criteria:
+- All tests passing
+- Correct behavior enforced
+- No regressions
+- No assertion weakening
+```
+
+### Step 4: Review test quality
+
+Prompt:
+
+```text
+/Test Reviewer & Smell Detector
+
+Context:
+- Feature: <feature name>
+
+Focus:
+- weak assertions
+- over-mocking
+- redundancy
+- missing scenarios
+- flaky risks
+```
+
+### Step 5: Validate architecture
+
+Prompt:
+
+```text
+/Architecture Consistency Guardian
+
+Context:
+- Feature: <feature name>
+- Domain: <domain>
+
+Check:
+- DDD invariants
+- aggregate consistency
+- CQRS separation
+- event consistency
+```
+
+### Step 6: Validate runtime reality (when applicable)
+
+Prompt:
+
+```text
+/Runtime Behavior & Contract Validator
+
+Context:
+- Feature: <feature name>
+
+Analyze:
+- runtime behavior vs tests
+- event contracts
+- missing real-world scenarios
+```
+
+## Quick Routing Table
+
+| Situation | Recommended Agent |
+| --- | --- |
+| Creating a feature | Test Generator & Coverage Analyzer |
+| Failing tests or regressions | Test and Fix |
+| Suspicious/weak tests | Test Reviewer & Smell Detector |
+| Architecture/design concerns | Architecture Consistency Guardian |
+| Production/runtime mismatch | Runtime Behavior & Contract Validator |
+
+## New Feature Starter Kit (Mental Template)
+
+Use this as the default copy/paste feature template.
+
+### 1) Generator prompt
+
+```text
+/Test Generator & Coverage Analyzer
+
+Feature: <FEATURE NAME>
+
+Context:
+- Domain: <domain>
+- Goal: <business goal>
+- Actors: <actors>
+
+Business Rules:
+- <rule 1>
+- <rule 2>
+- <rule 3>
+
+Constraints:
+- <constraint 1>
+- <constraint 2>
+
+Edge Cases:
+- <edge case 1>
+- <edge case 2>
+
+Goal:
+- Full coverage (unit, integration, e2e)
+- Focus on behavior, not implementation
+- Strong assertions
+
+Important:
+- Do not generate implementation
+- Tests must fail initially (TDD)
+```
+
+### 2) Validation checklist before done
+
+- Happy path is covered
+- Failure paths are covered
+- Edge cases are covered
+- Tests fail when behavior breaks
+- Aggregates protect invariants
+- Handlers do not contain domain logic
+- Events are domain-meaningful
+- No mocks are hiding behavior bugs
+- No brittle/flaky test patterns remain
+
+### 3) Daily short version
+
+```text
+/Test Generator & Coverage Analyzer
+Feature: <name>
+Goal: full coverage (unit, integration, e2e)
+Include edge cases and failure scenarios
+
+/Test and Fix
+Fix failing tests for <feature>
+Ensure correct behavior and no regressions
+
+/Test Reviewer & Smell Detector
+Review test quality for <feature>
+
+/Architecture Consistency Guardian
+Validate architecture consistency for <feature>
+```
+
+## Common Mistakes to Avoid
+
+- Skipping Generator and writing code without explicit behavior contracts
+- Using Test and Fix as a substitute for design thinking
+- Ignoring test quality review and accumulating weak tests
+- Ignoring architecture review and increasing hidden technical debt
+- Running all agents every time when scope does not require it
+
+## Project Simplicity Constraint (Reinforcement)
+
+Do not push this repository into full layered DDD architecture.
+
+- Keep implementation practical and study-focused
+- Favor DDD-light boundaries and clear intent
+- Improve quality and maintainability without overengineering
+
 ---
 
 # Architectural Decisions

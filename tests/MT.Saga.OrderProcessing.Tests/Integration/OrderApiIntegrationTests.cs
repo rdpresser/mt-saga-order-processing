@@ -43,6 +43,23 @@ public sealed class OrderApiIntegrationTests
 
         var orderId = await _fixture.CreateOrderAsync(33.30m, $"integration-list-{Guid.NewGuid():N}@example.com", ct);
 
+        var byIdAppeared = false;
+        var byIdTimeout = DateTimeOffset.UtcNow.AddSeconds(45);
+
+        while (DateTimeOffset.UtcNow < byIdTimeout)
+        {
+            var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
+            if (byId is not null)
+            {
+                byIdAppeared = true;
+                break;
+            }
+
+            await Task.Delay(500, ct);
+        }
+
+        byIdAppeared.ShouldBeTrue();
+
         var existsInList = false;
         var timeout = DateTimeOffset.UtcNow.AddSeconds(30);
 

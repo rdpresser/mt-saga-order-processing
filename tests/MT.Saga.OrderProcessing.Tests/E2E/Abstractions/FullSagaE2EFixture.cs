@@ -33,6 +33,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 {
     private const string DatabaseName = "mt_saga_order_processing_e2e";
     private static readonly TimeSpan WorkerStartupStabilizationDelay = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan WorkerReadinessProbeTimeout = TimeSpan.FromSeconds(90);
 
     private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("postgres")
@@ -82,6 +83,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         _inventoryWorkerHost = await StartInventoryWorkerAsync(ct);
 
         await WaitForOrderServiceReadinessAsync(ct);
+        await EnsureHappyPathWorkersReadyAsync(ct);
     }
 
     private async Task ApplyMigrationsOnceAsync(CancellationToken ct)
@@ -204,6 +206,39 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         await EnsurePaymentWorkerStartedAsync(cancellationToken);
         await EnsureInventoryWorkerStartedAsync(cancellationToken);
         await Task.Delay(WorkerStartupStabilizationDelay, cancellationToken);
+        await EnsureHappyPathWorkersReadyAsync(cancellationToken);
+    }
+
+    private async Task EnsureHappyPathWorkersReadyAsync(CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var attempts = 0;
+        Guid? lastProbeOrderId = null;
+        string? lastObservedStatus = null;
+
+        while (DateTimeOffset.UtcNow - started < WorkerReadinessProbeTimeout)
+        {
+            attempts++;
+            var probeOrderId = await CreateOrderAsync(12.34m, $"readiness-{Guid.NewGuid():N}@example.com", cancellationToken);
+            lastProbeOrderId = probeOrderId;
+
+            var confirmed = await WaitForOrderReadModelStatusAsync(
+                probeOrderId,
+                expectedStatus: "Confirmed",
+                timeout: TimeSpan.FromSeconds(20),
+                cancellationToken);
+
+            if (confirmed)
+            {
+                return;
+            }
+
+            lastObservedStatus = (await GetOrderByIdAsync(probeOrderId, cancellationToken))?.Status ?? "<not-found>";
+            await Task.Delay(1000, cancellationToken);
+        }
+
+        throw new InvalidOperationException(
+            $"Worker readiness probe failed after {attempts} attempt(s) and {WorkerReadinessProbeTimeout.TotalSeconds:F0}s. Last probe order: {lastProbeOrderId?.ToString() ?? "<none>"}, last observed status: {lastObservedStatus ?? "<unknown>"}.");
     }
 
     public async Task<HttpStatusCode> GetOrderStatusCodeAsync(Guid orderId, CancellationToken cancellationToken)
