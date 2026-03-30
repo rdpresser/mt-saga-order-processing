@@ -45,6 +45,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IEndpointBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddScoped<IEndpointBehavior<CreateOrderCommand, IResult>,
             CacheInvalidationBehavior<CreateOrderCommand, IResult>>();
+        services.AddScoped<IEndpointBehavior<GetOrdersQuery, IResult>,
+            CachingBehavior<GetOrdersQuery, IResult>>();
+        services.AddScoped<IEndpointBehavior<GetOrderByIdQuery, IResult>,
+            CachingBehavior<GetOrderByIdQuery, IResult>>();
         services.AddScoped(typeof(EndpointPipeline<,>));
         services.AddExceptionHandler<ValidationExceptionHandler>();
         services.AddProblemDetails();

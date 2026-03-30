@@ -1,3 +1,5 @@
+using MT.Saga.OrderProcessing.Contracts.Messaging;
+
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging;
 
 public static class OrderMessagingTopology
@@ -14,11 +16,11 @@ public static class OrderMessagingTopology
     /// </summary>
     public static class Queues
     {
-        public const string Saga = "orders.saga-queue";
-        public const string ReadModel = "orders.read-model-queue";
-        public const string ProcessPayment = "orders.process-payment-queue";
-        public const string RefundPayment = "orders.refund-payment-queue";
-        public const string ReserveInventory = "orders.reserve-inventory-queue";
+        public const string Saga = OrderQueueNames.Saga;
+        public const string ReadModel = OrderQueueNames.ReadModel;
+        public const string ProcessPayment = OrderQueueNames.ProcessPayment;
+        public const string RefundPayment = OrderQueueNames.RefundPayment;
+        public const string ReserveInventory = OrderQueueNames.ReserveInventory;
     }
 
     public static class Actions

@@ -43,15 +43,4 @@
     <ProjectReference Include="..\..\src\MT.Saga.OrderProcessing.Saga\MT.Saga.OrderProcessing.Saga.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageVersion Update="SonarAnalyzer.CSharp" Version="10.21.0.135717" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Update="SonarAnalyzer.CSharp">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
 </Project>

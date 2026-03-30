@@ -35,10 +35,13 @@ public static class Program
         var rabbitMqPassword = builder.AddParameter("rabbitmq-password", rabbitMqOptions.Password, secret: true);
         var postgresUsername = builder.AddParameter("postgres-username", postgresOptions.Username);
         var postgresPassword = builder.AddParameter("postgres-password", postgresOptions.Password, secret: true);
+        var redisPassword = string.IsNullOrWhiteSpace(redisOptions.Password)
+            ? null
+            : builder.AddParameter("redis-password", redisOptions.Password, secret: true);
 
-        var redis = string.IsNullOrWhiteSpace(redisOptions.Password)
+        var redis = redisPassword is null
             ? builder.AddRedis("redis", redisOptions.Port)
-            : builder.AddRedis("redis", redisOptions.Port, builder.AddParameter("redis-password", redisOptions.Password, secret: true));
+            : builder.AddRedis("redis", redisOptions.Port, redisPassword);
 
         redis = redis
             .WithImage("redis")
@@ -72,9 +75,16 @@ public static class Program
             .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
             .WithEnvironment("Cache__Redis__Host", redisOptions.Host)
             .WithEnvironment("Cache__Redis__Port", redisOptions.Port.ToString())
-            .WithEnvironment("Cache__Redis__Password", redisOptions.Password)
             .WithEnvironment("Cache__Redis__Secure", redisOptions.Secure.ToString())
-            .WithEnvironment("Cache__Redis__InstanceName", redisOptions.InstanceName);
+            .WithEnvironment("Cache__Redis__InstanceName", redisOptions.InstanceName)
+            .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
+            .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
+            .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
+        if (redisPassword is not null)
+        {
+            orderService = orderService.WithEnvironment("Cache__Redis__Password", redisPassword);
+        }
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -91,7 +101,11 @@ public static class Program
         var paymentService = builder.AddProject<Projects.MT_Saga_OrderProcessing_PaymentService>("payment-service")
             .WithReference(rabbitMq)
             .WaitFor(rabbitMq)
-            .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName);
+            .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
+            .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
+            .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
+            .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -108,7 +122,11 @@ public static class Program
         var inventoryService = builder.AddProject<Projects.MT_Saga_OrderProcessing_InventoryService>("inventory-service")
             .WithReference(rabbitMq)
             .WaitFor(rabbitMq)
-            .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName);
+            .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
+            .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
+            .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
+            .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {

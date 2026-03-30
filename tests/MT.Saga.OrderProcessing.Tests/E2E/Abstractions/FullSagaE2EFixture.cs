@@ -328,6 +328,14 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         finally
         {
             await bus.StopAsync(cancellationToken);
+            if (bus is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else if (bus is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
 
@@ -373,6 +381,14 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         finally
         {
             await bus.StopAsync(cancellationToken);
+            if (bus is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else if (bus is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
 

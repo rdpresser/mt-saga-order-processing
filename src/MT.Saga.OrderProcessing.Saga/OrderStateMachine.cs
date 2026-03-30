@@ -1,15 +1,12 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
+using MT.Saga.OrderProcessing.Contracts.Messaging;
 
 namespace MT.Saga.OrderProcessing.Saga;
 
 public class OrderStateMachine : MassTransitStateMachine<OrderState>
 {
-    private const string ProcessPaymentQueueUri = "queue:orders.process-payment-queue";
-    private const string ReserveInventoryQueueUri = "queue:orders.reserve-inventory-queue";
-    private const string RefundPaymentQueueUri = "queue:orders.refund-payment-queue";
-
     public State PaymentProcessing { get; private set; } = null!;
     public State InventoryReserving { get; private set; } = null!;
     public State Confirmed { get; private set; } = null!;
@@ -34,7 +31,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
         Initially(
             When(OrderCreated)
                 .TransitionTo(PaymentProcessing)
-                .Send(new Uri(ProcessPaymentQueueUri), ctx => EventContext.Create(
+                .Send(CreateQueueUri(OrderQueueNames.ProcessPayment), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "process-payment",
@@ -49,7 +46,7 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
         During(PaymentProcessing,
             When(PaymentProcessed)
                 .TransitionTo(InventoryReserving)
-                .Send(new Uri(ReserveInventoryQueueUri), ctx => EventContext.Create(
+                .Send(CreateQueueUri(OrderQueueNames.ReserveInventory), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "reserve-inventory",
@@ -66,7 +63,13 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                     sourceService: "orders",
                     entity: "order",
                     action: "cancelled",
-                    payload: new OrderCancelled(ctx.Message.Payload.OrderId)))
+                    payload: new OrderCancelled(ctx.Message.Payload.OrderId),
+                    correlationId: ctx.Message.CorrelationId,
+                    causationId: ctx.Message.EventId.ToString(),
+                    userId: ctx.Message.UserId,
+                    isAuthenticated: ctx.Message.IsAuthenticated,
+                    version: ctx.Message.Version,
+                    metadata: ctx.Message.Metadata))
                 .Finalize());
 
         During(InventoryReserving,
@@ -76,11 +79,17 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                     sourceService: "orders",
                     entity: "order",
                     action: "confirmed",
-                    payload: new OrderConfirmed(ctx.Message.Payload.OrderId)))
+                    payload: new OrderConfirmed(ctx.Message.Payload.OrderId),
+                    correlationId: ctx.Message.CorrelationId,
+                    causationId: ctx.Message.EventId.ToString(),
+                    userId: ctx.Message.UserId,
+                    isAuthenticated: ctx.Message.IsAuthenticated,
+                    version: ctx.Message.Version,
+                    metadata: ctx.Message.Metadata))
                 .Finalize(),
             When(InventoryFailed)
                 .TransitionTo(Cancelled)
-                .Send(new Uri(RefundPaymentQueueUri), ctx => EventContext.Create(
+                .Send(CreateQueueUri(OrderQueueNames.RefundPayment), ctx => EventContext.Create(
                     sourceService: "orders",
                     entity: "order",
                     action: "refund-payment",
@@ -95,9 +104,17 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                     sourceService: "orders",
                     entity: "order",
                     action: "cancelled",
-                    payload: new OrderCancelled(ctx.Message.Payload.OrderId)))
+                    payload: new OrderCancelled(ctx.Message.Payload.OrderId),
+                    correlationId: ctx.Message.CorrelationId,
+                    causationId: ctx.Message.EventId.ToString(),
+                    userId: ctx.Message.UserId,
+                    isAuthenticated: ctx.Message.IsAuthenticated,
+                    version: ctx.Message.Version,
+                    metadata: ctx.Message.Metadata))
                 .Finalize());
 
         SetCompletedWhenFinalized();
     }
+
+    private static Uri CreateQueueUri(string queueName) => new($"queue:{queueName}");
 }

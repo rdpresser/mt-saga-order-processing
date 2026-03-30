@@ -18,6 +18,7 @@ public sealed class PostgresDatabaseOptions
     public int KeepAlive { get; set; } = 30;
     public bool Multiplexing { get; set; }
     public string? SslMode { get; set; }
+    public bool IncludeErrorDetail { get; set; }
 
     public string ConnectionString => BuildConnectionString(Database);
 
@@ -40,7 +41,7 @@ public sealed class PostgresDatabaseOptions
             MaxPoolSize = MaxPoolSize,
             KeepAlive = KeepAlive,
             Multiplexing = Multiplexing,
-            IncludeErrorDetail = true
+            IncludeErrorDetail = IncludeErrorDetail
         };
 
         if (!string.IsNullOrWhiteSpace(SslMode) && Enum.TryParse<SslMode>(SslMode, ignoreCase: true, out var sslMode))

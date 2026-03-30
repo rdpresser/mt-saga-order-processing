@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
@@ -10,12 +11,13 @@ public static class ApplicationBuilderExtensions
 {
     public static WebApplication UseOrderService(this WebApplication app)
     {
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        var forwardedHeadersOptions = BuildForwardedHeadersOptions(app.Configuration);
+        if (forwardedHeadersOptions is not null)
         {
-            ForwardedHeaders = ForwardedHeaders.All
-        });
+            app.UseForwardedHeaders(forwardedHeadersOptions);
+        }
 
-        app.UseIngressPathBase();
+        app.UseIngressPathBase(forwardedHeadersOptions);
 
         var swaggerEnabled = app.Configuration.GetValue("Swagger:Enabled", true);
         if (swaggerEnabled)
@@ -67,7 +69,9 @@ public static class ApplicationBuilderExtensions
         return app;
     }
 
-    private static IApplicationBuilder UseIngressPathBase(this IApplicationBuilder app)
+    private static IApplicationBuilder UseIngressPathBase(
+        this IApplicationBuilder app,
+        ForwardedHeadersOptions? forwardedHeadersOptions)
     {
         var configuredBasePath = ResolveConfiguredPathBase(app.ApplicationServices.GetRequiredService<IConfiguration>());
         if (!string.IsNullOrWhiteSpace(configuredBasePath))
@@ -77,24 +81,27 @@ public static class ApplicationBuilderExtensions
 
         app.Use(async (context, next) =>
         {
-            if (context.Request.Headers.TryGetValue("X-Forwarded-Prefix", out var forwardedPrefixValues))
+            if (IsTrustedForwarder(context.Connection.RemoteIpAddress, forwardedHeadersOptions))
             {
-                var forwardedPrefix = forwardedPrefixValues.FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(forwardedPrefix))
+                if (context.Request.Headers.TryGetValue("X-Forwarded-Prefix", out var forwardedPrefixValues))
                 {
-                    context.Request.PathBase = new PathString(NormalizePathBase(forwardedPrefix));
+                    var forwardedPrefix = forwardedPrefixValues.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(forwardedPrefix))
+                    {
+                        context.Request.PathBase = new PathString(NormalizePathBase(forwardedPrefix));
+                    }
                 }
-            }
-            else if (context.Request.Headers.TryGetValue("X-Original-URI", out var originalUriValues))
-            {
-                var originalUri = originalUriValues.FirstOrDefault() ?? string.Empty;
-                var firstSegment = originalUri.TrimStart('/').Split('/').FirstOrDefault();
-
-                if (!string.IsNullOrWhiteSpace(firstSegment)
-                    && !string.Equals(firstSegment, "swagger", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(firstSegment, "orders", StringComparison.OrdinalIgnoreCase))
+                else if (context.Request.Headers.TryGetValue("X-Original-URI", out var originalUriValues))
                 {
-                    context.Request.PathBase = new PathString(NormalizePathBase(firstSegment));
+                    var originalUri = originalUriValues.FirstOrDefault() ?? string.Empty;
+                    var firstSegment = originalUri.TrimStart('/').Split('/').FirstOrDefault();
+
+                    if (!string.IsNullOrWhiteSpace(firstSegment)
+                        && !string.Equals(firstSegment, "swagger", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(firstSegment, "orders", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Request.PathBase = new PathString(NormalizePathBase(firstSegment));
+                    }
                 }
             }
 
@@ -106,12 +113,90 @@ public static class ApplicationBuilderExtensions
 
     private static string ResolveConfiguredPathBase(IConfiguration configuration)
     {
-        var rawPathBase = Environment.GetEnvironmentVariable("ASPNETCORE_APPL_PATH")
+        var rawPathBase = Environment.GetEnvironmentVariable("ASPNETCORE_PATHBASE")
+            ?? configuration["ASPNETCORE_PATHBASE"]
+            ?? Environment.GetEnvironmentVariable("PATH_BASE")
+            ?? configuration["PATH_BASE"]
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_APPL_PATH")
             ?? configuration["ASPNETCORE_APPL_PATH"]
             ?? configuration["PathBase"]
             ?? string.Empty;
 
         return NormalizePathBase(rawPathBase);
+    }
+
+    private static ForwardedHeadersOptions? BuildForwardedHeadersOptions(IConfiguration configuration)
+    {
+        var forwardedHeadersEnabled = configuration.GetValue<bool?>("Networking:ForwardedHeaders:Enabled")
+            ?? configuration.GetValue<bool?>("ASPNETCORE_FORWARDEDHEADERS_ENABLED")
+            ?? false;
+
+        if (!forwardedHeadersEnabled)
+        {
+            return null;
+        }
+
+        var options = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+        };
+
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        options.KnownProxies.Add(IPAddress.Loopback);
+        options.KnownProxies.Add(IPAddress.IPv6Loopback);
+
+        foreach (var knownProxy in configuration.GetSection("Networking:ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        {
+            if (IPAddress.TryParse(knownProxy, out var proxyAddress))
+            {
+                options.KnownProxies.Add(proxyAddress);
+            }
+        }
+
+        foreach (var knownNetwork in configuration.GetSection("Networking:ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+        {
+            if (TryParseKnownNetwork(knownNetwork, out var network))
+            {
+                options.KnownIPNetworks.Add(network);
+            }
+        }
+
+        return options;
+    }
+
+    private static bool IsTrustedForwarder(IPAddress? remoteIpAddress, ForwardedHeadersOptions? forwardedHeadersOptions)
+    {
+        if (remoteIpAddress is null || forwardedHeadersOptions is null)
+        {
+            return false;
+        }
+
+        if (forwardedHeadersOptions.KnownProxies.Contains(remoteIpAddress))
+        {
+            return true;
+        }
+
+        return forwardedHeadersOptions.KnownIPNetworks.Any(network => network.Contains(remoteIpAddress));
+    }
+
+    private static bool TryParseKnownNetwork(string value, out System.Net.IPNetwork network)
+    {
+        network = default;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var parts = value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out var prefixAddress) || !int.TryParse(parts[1], out var prefixLength))
+        {
+            return false;
+        }
+
+        network = new System.Net.IPNetwork(prefixAddress, prefixLength);
+        return true;
     }
 
     private static string ResolveSwaggerServerUrl(string? requestPathBase, string? configuredPathBase)

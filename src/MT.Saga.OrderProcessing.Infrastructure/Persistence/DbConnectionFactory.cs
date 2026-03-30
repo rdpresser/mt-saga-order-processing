@@ -1,12 +1,16 @@
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
-public sealed class DbConnectionFactory(IOptions<PostgresDatabaseOptions> options)
+public sealed class DbConnectionFactory
 {
-    private readonly PostgresDatabaseOptions _options = options.Value;
+    public DbConnectionFactory(IConfiguration configuration)
+    {
+        ConnectionString = DatabaseConnectionStringHelper.GetRequiredConnectionString(configuration);
+        MaintenanceConnectionString = DatabaseConnectionStringHelper.GetMaintenanceConnectionString(configuration);
+    }
 
-    public string ConnectionString => _options.ConnectionString;
+    public string ConnectionString { get; }
 
-    public string MaintenanceConnectionString => _options.MaintenanceConnectionString;
+    public string MaintenanceConnectionString { get; }
 }

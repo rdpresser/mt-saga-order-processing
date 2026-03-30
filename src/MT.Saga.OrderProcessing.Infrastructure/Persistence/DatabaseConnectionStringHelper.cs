@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
@@ -25,5 +26,17 @@ public static class DatabaseConnectionStringHelper
                 "Missing database configuration. Expected ConnectionStrings:saga-db, ConnectionStrings:postgres, or Database:Postgres section.");
 
         return options.ConnectionString;
+    }
+
+    public static string GetMaintenanceConnectionString(
+        IConfiguration configuration,
+        string preferredConnectionName = "saga-db")
+    {
+        var builder = new NpgsqlConnectionStringBuilder(GetRequiredConnectionString(configuration, preferredConnectionName))
+        {
+            Database = configuration["Database:Postgres:MaintenanceDatabase"] ?? "postgres"
+        };
+
+        return builder.ConnectionString;
     }
 }

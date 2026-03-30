@@ -2,6 +2,8 @@ namespace MT.Saga.OrderProcessing.Infrastructure.Messaging;
 
 public sealed class RabbitMqOptions
 {
+    private const char UriPathSeparator = '/';
+
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 5672;
     public int ManagementPort { get; set; } = 15672;
@@ -18,18 +20,31 @@ public sealed class RabbitMqOptions
 
     private string BuildAmqpUri()
     {
-        var vhost = string.IsNullOrWhiteSpace(VirtualHost) ? "/" : VirtualHost.Trim();
+        var user = Uri.EscapeDataString(UserName ?? string.Empty);
+        var pass = Uri.EscapeDataString(Password ?? string.Empty);
+        var rawVhost = string.IsNullOrWhiteSpace(VirtualHost)
+            ? UriPathSeparator.ToString()
+            : VirtualHost.Trim();
 
-        if (!vhost.StartsWith('/'))
+        if (!rawVhost.StartsWith(UriPathSeparator))
         {
-            vhost = "/" + vhost;
+            rawVhost = UriPathSeparator + rawVhost;
         }
 
-        if (vhost == "/")
-        {
-            vhost = "/%2F";
-        }
+        var vhostPath = rawVhost == UriPathSeparator.ToString()
+            ? "%2F"
+            : Uri.EscapeDataString(rawVhost.TrimStart(UriPathSeparator));
 
-        return $"amqp://{UserName}:{Password}@{Host}:{Port}{vhost}";
+        var builder = new UriBuilder
+        {
+            Scheme = "amqp",
+            Host = Host,
+            Port = Port,
+            UserName = user,
+            Password = pass,
+            Path = vhostPath
+        };
+
+        return builder.Uri.ToString();
     }
 }
