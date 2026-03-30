@@ -1,12 +1,12 @@
-# E2E Fixture Issue - Health Check Timeout
+# E2E Fixture Issue - Health Check Timeout (Historical)
 
 **Date:** March 25, 2026  
-**status:** 🔴 INVESTIGATING  
-**Impact:** E2E tests timeout at fixture initialization (health check never responds)
+**Status:** ✅ RESOLVED (historical record)  
+**Impact at the time:** E2E tests timed out at fixture initialization (health check did not respond)
 
 ---
 
-## Problem
+## Problem (historical)
 
 When running E2E tests via WebApplicationFactory, the health check endpoint times out after 60+ seconds:
 
@@ -23,23 +23,24 @@ WaitForOrderServiceReadinessAsync() → OrderClient.GetAsync("/health") → No r
 - Factory environment set to "Test" to skip Program.cs migrations
 - Health endpoint mapped unconditionally in MapDefaultEndpoints()
 
-## Diagnostics Done
+## Diagnostics Done (historical)
 
 ✅ Health endpoints (MapDefaultEndpoints) are always mapped (not Development-only)  
 ✅ Build succeeds with 0 errors  
-✅ Unit tests: 47/47 passing  
+✅ Unit tests at that point: 47/47 passing  
 ✅ Migrations moved out of Program.cs (run once in fixture)  
 ✅ Program.cs does NOT call RunAsync() when env="Test"  
 ✅ Testcontainers start successfully (PostgreSQL, RabbitMQ, Redis)
 
-## Likely Root Causes
+## Root Cause Summary
 
-1. **WebApplicationFactory + MassTransit initialization** - App might be failing silently during dependency injection setup (MassTransit configuration, RabbitMQ connection, etc.)
-2. **Testcontainer networking** - Container ports may not be accessible to test app in expected way
-3. **Configuration missing** - Test app might be missing required settings (e.g., connection strings not reaching app context)
-4. **Exception during startup** - App loading but throwing before health endpoint is responsiveAborting before health check completes
+This timeout symptom was part of a broader messaging integration mismatch that was fixed later by:
 
-## Next Investigation Steps
+1. validating explicit saga-to-worker command routing with queue URIs,
+2. adjusting outbox placement for the tested runtime shape,
+3. keeping health endpoints mapped in test environment.
+
+## Investigation Steps (kept for reference)
 
 Would require:
 
@@ -69,9 +70,12 @@ Would require:
    // Create minimal test to see if WebApplicationFactory works without Saga/consumers
    ```
 
-## Current Workaround
+## Current Status
 
-E2E tests are currently not running due to this timeout. Unit tests (47/47) pass successfully.
+This workaround is no longer active.
+
+The full suite currently passes in the repository runtime shape.
+Use `docs/REFACTORING_STATUS.md` as the authoritative status source.
 
 ## Related Files
 
@@ -81,4 +85,4 @@ E2E tests are currently not running due to this timeout. Unit tests (47/47) pass
 
 ---
 
-**Note:** The MassTransit refactoring (6 configuration classes) is complete and unit-tested. This E2E issue is a test infrastructure problem separate from the refactoring work.
+**Note:** Keep this file as historical debugging context only.

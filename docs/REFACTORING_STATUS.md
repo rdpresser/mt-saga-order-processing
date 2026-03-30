@@ -1,6 +1,6 @@
 # MassTransit Configuration Refactoring - Status
 
-**Last Updated:** March 25, 2026  
+**Last Updated:** March 29, 2026  
 **Objective:** Keep the MassTransit configuration explicit, modular, and aligned with the validated runtime behavior of the solution.
 
 ---
@@ -35,7 +35,7 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 - Consumer definitions are the active runtime registration mechanism for worker endpoints
 - Worker services register consumers explicitly in each `Program.cs` and materialize endpoints via `cfg.ConfigureEndpoints(context)`
 - Unused placeholder helper files were removed to keep code and docs aligned
-- Configuration sections documented: `Messaging:RabbitMq`, `Messaging:Policies`, `Messaging:Database`
+- Configuration sections documented: `Messaging:RabbitMq`, `Messaging:Resilience`, `Database:Postgres`
 - Observers registered for logging (LoggingConsumeObserver, LoggingPublishObserver)
 
 ### ✅ Integration Fixes Validated
@@ -64,7 +64,7 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
    - raw endpoint strings such as `"process-payment"` are considered drift and should be replaced
 
 7. **Full regression suite is green**
-   - `dotnet test -c Release` passes with 58/58 tests
+   - `dotnet test -c Release` passes with 61/61 tests
 
 ---
 
@@ -84,6 +84,12 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 
 ## Configuration Schema (Current Reference)
 
+Primary runtime sections currently used by services are:
+
+- `Messaging:RabbitMq`
+- `Messaging:Resilience`
+- `Database:Postgres`
+
 ```json
 {
   "Messaging": {
@@ -94,20 +100,29 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
       "Password": "guest",
       "VirtualHost": "/"
     },
-    "Policies": {
-      "PrefetchCount": 64,
-      "ConcurrentMessageLimit": 4,
-      "RetryAttempts": 5,
-      "RetryInitialIntervalMs": 1000,
-      "RetryMaxIntervalMs": 30000,
-      "RetryIntervalIncrementMs": 5000
-    },
-    "Database": {
-      "ConnectionString": "Host=localhost;Database=saga_orderprocessing;Username=postgres;Password=postgres"
+    "Resilience": {
+      "PrefetchCount": 16,
+      "MaxRetryAttempts": 5,
+      "PublishMaxAttempts": 3,
+      "PublishRetryDelayMilliseconds": 200
     }
   },
-  "ConnectionStrings": {
-    "SagaDb": "Host=localhost;Database=saga_orderprocessing;Username=postgres;Password=postgres"
+  "Database": {
+    "Postgres": {
+      "Host": "localhost",
+      "Port": 5432,
+      "UserName": "postgres",
+      "Password": "postgres",
+      "Database": "mt_saga_order_processing",
+      "MaintenanceDatabase": "postgres",
+      "Schema": "public",
+      "ConnectionTimeout": 30,
+      "CommandTimeout": 30,
+      "MinPoolSize": 5,
+      "MaxPoolSize": 100,
+      "KeepAlive": 30,
+      "Multiplexing": false
+    }
   }
 }
 ```
@@ -142,7 +157,7 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
 
 - **Knowledge Base:** `/docs/MASSTRANSIT_KB.md`
 - **Refactoring Plan:** `/docs/REFACTORING_PLAN.md`
-- **Old Config (to retire):** `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/DependencyInjection/MassTransitServiceCollectionExtensions.cs`
+- **Worker runtime path (currently active):** `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/DependencyInjection/MassTransitServiceCollectionExtensions.cs`
 - **Contracts (messages):** `/src/MT.Saga.OrderProcessing.Contracts/Commands/` and `/Events/`
 
 ---

@@ -4,7 +4,7 @@
 **Project:** mt-saga-order-processing  
 **Goal:** Replace reflection-based, monolithic MassTransit config with explicit, modular, well-documented infrastructure
 
-> Historical note (March 25, 2026): this document captures an earlier milestone. Some next steps and assumptions below were superseded by later integration discoveries. For the current authoritative architecture decisions, use `docs/MASSTRANSIT_KB.md` and `docs/REFACTORING_STATUS.md`.
+> Historical note (March 25, 2026): this document captures an earlier milestone and is kept for historical traceability only. Some next steps and assumptions below were superseded by later integration discoveries. For the current authoritative architecture decisions and runtime status, use `docs/MASSTRANSIT_KB.md` and `docs/REFACTORING_STATUS.md`.
 
 ---
 
@@ -231,6 +231,7 @@ services.AddWorkerMassTransit(
 
 ---
 
-**Status:** 🟢 **READY FOR PHASE 4: WORKER SERVICE IMPLEMENTATION**
+**Status:** 📚 **ARCHIVED HISTORICAL MILESTONE**
 
-The foundation is solid. Ready to implement actual consumer registrations and clean up EventContext wrapper in next session.
+This session record is complete and retained as history.
+Current roadmap and active runtime decisions are maintained in `docs/REFACTORING_STATUS.md` and `docs/MASSTRANSIT_KB.md`.

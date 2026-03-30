@@ -93,10 +93,14 @@ src/
 
 ## Running Locally
 
-### 1. Start Infrastructure
+Use the repository automation script (`dev.ps1`) for local workflow.
+This repository does not keep a `docker-compose.yml` at the root.
 
-```bash
-docker-compose up -d
+```powershell
+pwsh ./dev.ps1 up
+pwsh ./dev.ps1 build
+pwsh ./dev.ps1 test
+pwsh ./dev.ps1 down
 ```
 
 Services:
@@ -106,17 +110,7 @@ Services:
 
 ---
 
-### 2. Run Services
-
-```bash
-dotnet run --project src/Services/MT.Saga.OrderProcessing.OrderService
-dotnet run --project src/Services/MT.Saga.OrderProcessing.PaymentService
-dotnet run --project src/Services/MT.Saga.OrderProcessing.InventoryService
-```
-
----
-
-### 3. Trigger Flow
+### Trigger Flow
 
 Send an `OrderCreated` event via API or test harness.
 
