@@ -140,6 +140,7 @@ public static class SagaOrchestrationMassTransitExtensions
             x.AddEntityFrameworkOutbox<OrderSagaDbContext>(o =>
             {
                 o.QueryDelay = TimeSpan.FromSeconds(1);
+                o.UsePostgres();
                 o.UseBusOutbox();
             });
 

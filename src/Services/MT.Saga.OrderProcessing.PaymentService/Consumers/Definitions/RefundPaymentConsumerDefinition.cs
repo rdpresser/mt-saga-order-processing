@@ -1,5 +1,6 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
 namespace MT.Saga.OrderProcessing.PaymentService.Consumers.Definitions;
 
@@ -16,6 +17,8 @@ public sealed class RefundPaymentConsumerDefinition : ConsumerDefinition<RefundP
         IConsumerConfigurator<RefundPaymentConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
+        endpointConfigurator.UseEntityFrameworkOutbox<OrderSagaDbContext>(context);
+
         endpointConfigurator.UseMessageRetry(r =>
             r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
 

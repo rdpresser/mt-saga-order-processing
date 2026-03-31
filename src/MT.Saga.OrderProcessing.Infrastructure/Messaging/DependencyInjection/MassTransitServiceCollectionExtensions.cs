@@ -78,7 +78,7 @@ public static class MassTransitServiceCollectionExtensions
             x.AddEntityFrameworkOutbox<OrderSagaDbContext>(o =>
             {
                 o.QueryDelay = TimeSpan.FromSeconds(1);
-                o.UseBusOutbox();
+                o.UsePostgres();
             });
 
             x.UsingRabbitMq((context, cfg) =>
