@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 using Shouldly;
-using System.Threading;
 
 namespace MT.Saga.OrderProcessing.Tests.Infrastructure;
 
@@ -19,12 +19,12 @@ public class OrderReadModelProjectorConsumerTests
         await using var projectorContext = new DuplicateOnFirstInsertOrderSagaDbContext(options);
         var consumer = new OrderReadModelProjectorConsumer(projectorContext, NullLogger<OrderReadModelProjectorConsumer>.Instance);
 
-        await consumer.ProjectStatusAsync(orderId, "PaymentProcessed", TestContext.Current.CancellationToken);
+        await consumer.ProjectStatusAsync(orderId, OrderStatuses.PaymentProcessed, TestContext.Current.CancellationToken);
 
         await using var verificationContext = new OrderSagaDbContext(options);
         var projected = await verificationContext.Orders.SingleAsync(x => x.OrderId == orderId, TestContext.Current.CancellationToken);
 
-        projected.Status.ShouldBe("PaymentProcessed");
+        projected.Status.ShouldBe(OrderStatuses.PaymentProcessed);
     }
 
     private static DbContextOptions CreateOptions(string databaseName)
@@ -60,7 +60,7 @@ public class OrderReadModelProjectorConsumerTests
                     competingContext.Orders.Add(new OrderReadModel
                     {
                         OrderId = pendingInsert.Entity.OrderId,
-                        Status = "Created",
+                        Status = OrderStatuses.Created,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     });

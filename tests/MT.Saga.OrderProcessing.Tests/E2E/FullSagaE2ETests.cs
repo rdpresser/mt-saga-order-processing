@@ -1,4 +1,5 @@
 using System.Net;
+using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Tests.E2E.Abstractions;
 using Shouldly;
 
@@ -26,16 +27,16 @@ public sealed class FullSagaE2ETests
         {
             var orderId = await _fixture.CreateOrderAsync(120.50m, $"created-{Guid.NewGuid():N}@example.com", ct);
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Created", TimeSpan.FromSeconds(30), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.Created, TimeSpan.FromSeconds(30), ct);
             projected.ShouldBeTrue();
 
             var response = await _fixture.GetOrderByIdAsync(orderId, ct);
             response.ShouldNotBeNull();
             response.OrderId.ShouldBe(orderId);
-            response.Status.ShouldBe("Created");
+            response.Status.ShouldBe(OrderStatuses.Created);
 
             var allOrders = await _fixture.GetOrdersAsync(1, 50, ct);
-            allOrders.Any(x => x.OrderId == orderId && x.Status == "Created").ShouldBeTrue();
+            allOrders.Any(x => x.OrderId == orderId && x.Status == OrderStatuses.Created).ShouldBeTrue();
         }
         finally
         {
@@ -53,16 +54,16 @@ public sealed class FullSagaE2ETests
 
         var orderId = await _fixture.CreateOrderAsync(120.50m, $"happy-{Guid.NewGuid():N}@example.com", ct);
 
-        var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
+        var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.Confirmed, TimeSpan.FromSeconds(240), ct);
         projected.ShouldBeTrue();
 
         var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
         byId.ShouldNotBeNull();
         byId.OrderId.ShouldBe(orderId);
-        byId.Status.ShouldBe("Confirmed");
+        byId.Status.ShouldBe(OrderStatuses.Confirmed);
 
         var allOrders = await _fixture.GetOrdersAsync(1, 100, ct);
-        allOrders.Any(x => x.OrderId == orderId && x.Status == "Confirmed").ShouldBeTrue();
+        allOrders.Any(x => x.OrderId == orderId && x.Status == OrderStatuses.Confirmed).ShouldBeTrue();
     }
 
     [Fact]
@@ -83,13 +84,13 @@ public sealed class FullSagaE2ETests
 
             finalized.ShouldBeTrue();
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(120), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.Cancelled, TimeSpan.FromSeconds(120), ct);
             projected.ShouldBeTrue();
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
             byId.ShouldNotBeNull();
             byId.OrderId.ShouldBe(orderId);
-            byId.Status.ShouldBe("Cancelled");
+            byId.Status.ShouldBe(OrderStatuses.Cancelled);
         }
         finally
         {
@@ -115,13 +116,13 @@ public sealed class FullSagaE2ETests
 
             finalized.ShouldBeTrue();
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "Cancelled", TimeSpan.FromSeconds(120), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.Cancelled, TimeSpan.FromSeconds(120), ct);
             projected.ShouldBeTrue();
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
             byId.ShouldNotBeNull();
             byId.OrderId.ShouldBe(orderId);
-            byId.Status.ShouldBe("Cancelled");
+            byId.Status.ShouldBe(OrderStatuses.Cancelled);
         }
         finally
         {
@@ -151,8 +152,8 @@ public sealed class FullSagaE2ETests
 
         firstOrderId.ShouldNotBe(secondOrderId);
 
-        var firstProjected = await _fixture.WaitForOrderReadModelStatusAsync(firstOrderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
-        var secondProjected = await _fixture.WaitForOrderReadModelStatusAsync(secondOrderId, "Confirmed", TimeSpan.FromSeconds(240), ct);
+        var firstProjected = await _fixture.WaitForOrderReadModelStatusAsync(firstOrderId, OrderStatuses.Confirmed, TimeSpan.FromSeconds(240), ct);
+        var secondProjected = await _fixture.WaitForOrderReadModelStatusAsync(secondOrderId, OrderStatuses.Confirmed, TimeSpan.FromSeconds(240), ct);
 
         firstProjected.ShouldBeTrue();
         secondProjected.ShouldBeTrue();

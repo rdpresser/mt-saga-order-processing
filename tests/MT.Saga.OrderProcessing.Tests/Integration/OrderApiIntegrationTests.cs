@@ -1,3 +1,4 @@
+using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Tests.E2E.Abstractions;
 using Shouldly;
 
@@ -23,12 +24,12 @@ public sealed class OrderApiIntegrationTests
         {
             var orderId = await _fixture.CreateOrderAsync(64.90m, $"integration-payment-processed-{Guid.NewGuid():N}@example.com", ct);
 
-            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, "PaymentProcessed", TimeSpan.FromSeconds(45), ct);
+            var projected = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.PaymentProcessed, TimeSpan.FromSeconds(45), ct);
             projected.ShouldBeTrue();
 
             var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
             byId.ShouldNotBeNull();
-            byId.Status.ShouldBe("PaymentProcessed");
+            byId.Status.ShouldBe(OrderStatuses.PaymentProcessed);
         }
         finally
         {

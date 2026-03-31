@@ -1,6 +1,7 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
@@ -25,25 +26,25 @@ public sealed class OrderReadModelProjectorConsumer :
     }
 
     public Task Consume(ConsumeContext<EventContext<OrderCreated>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "Created", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.Created, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<PaymentProcessed>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "PaymentProcessed", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.PaymentProcessed, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<PaymentFailed>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "PaymentFailed", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.PaymentFailed, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<InventoryReserved>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "InventoryReserved", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.InventoryReserved, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<InventoryFailed>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "InventoryFailed", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.InventoryFailed, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<OrderConfirmed>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "Confirmed", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.Confirmed, context.CancellationToken);
 
     public Task Consume(ConsumeContext<EventContext<OrderCancelled>> context)
-        => ProjectStatusAsync(context.Message.Payload.OrderId, "Cancelled", context.CancellationToken);
+        => ProjectStatusAsync(context.Message.Payload.OrderId, OrderStatuses.Cancelled, context.CancellationToken);
 
     internal async Task ProjectStatusAsync(Guid orderId, string status, CancellationToken cancellationToken)
     {
@@ -167,13 +168,13 @@ public sealed class OrderReadModelProjectorConsumer :
     {
         return status switch
         {
-            "Created" => 1,
-            "PaymentProcessed" => 2,
-            "PaymentFailed" => 2,
-            "InventoryReserved" => 3,
-            "InventoryFailed" => 3,
-            "Confirmed" => 4,
-            "Cancelled" => 4,
+            OrderStatuses.Created => 1,
+            OrderStatuses.PaymentProcessed => 2,
+            OrderStatuses.PaymentFailed => 2,
+            OrderStatuses.InventoryReserved => 3,
+            OrderStatuses.InventoryFailed => 3,
+            OrderStatuses.Confirmed => 4,
+            OrderStatuses.Cancelled => 4,
             _ => 0
         };
     }

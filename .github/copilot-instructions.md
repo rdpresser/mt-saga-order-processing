@@ -82,6 +82,13 @@ When multiple specialized agents are available, always choose the most appropria
 - If the request spans multiple concerns, prioritize primary intent first, then optionally apply secondary-agent reasoning.
 - Always prefer the most specialized agent over a generic approach.
 
+### Tool Reliability Fallback (Mandatory)
+
+- If agent invocation fails due to tooling/runtime issues (for example: `mgt.clearMarks is not a function`), stop invoking subagents for that request.
+- Continue with **manual routing** in the main agent by following this file's routing rules and executing the required analysis/changes directly.
+- Do not retry the same failing subagent call more than once in the same request.
+- Record in the final response that manual routing fallback was used due to tool failure.
+
 ### Ambiguity Rule (Mandatory)
 
 If routing is not clear, ask a direct clarification question before proceeding, for example:

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
@@ -224,7 +225,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
             var confirmed = await WaitForOrderReadModelStatusAsync(
                 probeOrderId,
-                expectedStatus: "Confirmed",
+                expectedStatus: OrderStatuses.Confirmed,
                 timeout: TimeSpan.FromSeconds(20),
                 cancellationToken);
 
@@ -449,8 +450,8 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
                 statusCommand.Parameters.AddWithValue("orderId", orderId);
 
                 var status = (await statusCommand.ExecuteScalarAsync(cancellationToken))?.ToString();
-                if (string.Equals(status, "Confirmed", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(status, OrderStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(status, OrderStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

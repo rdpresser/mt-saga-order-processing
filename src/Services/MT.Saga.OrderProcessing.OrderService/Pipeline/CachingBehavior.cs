@@ -17,6 +17,35 @@ public sealed class CachingBehavior<TRequest, TResponse> : IEndpointBehavior<TRe
 
     public async Task<TResponse> Handle(TRequest request, CancellationToken ct, Func<Task<TResponse>> next)
     {
+        if (request is IResponseCachingPolicy<TResponse> policy)
+        {
+            var cached = await _cache.GetAsync<TResponse>(
+                request.CacheKey,
+                request.Duration,
+                request.DistributedCacheDuration,
+                ct).ConfigureAwait(false);
+
+            if (cached is not null)
+            {
+                return cached;
+            }
+
+            var response = await next().ConfigureAwait(false);
+
+            if (policy.ShouldCache(response))
+            {
+                await _cache.SetAsync(
+                    request.CacheKey,
+                    response,
+                    request.Duration,
+                    request.DistributedCacheDuration,
+                    request.QueryCacheTags,
+                    ct).ConfigureAwait(false);
+            }
+
+            return response;
+        }
+
         return await _cache.GetOrSetRequiredAsync(
             request.CacheKey,
             async _ => await next().ConfigureAwait(false),
