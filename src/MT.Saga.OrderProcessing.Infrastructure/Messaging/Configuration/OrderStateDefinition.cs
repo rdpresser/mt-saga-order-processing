@@ -1,6 +1,5 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Events;
-using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Saga;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;

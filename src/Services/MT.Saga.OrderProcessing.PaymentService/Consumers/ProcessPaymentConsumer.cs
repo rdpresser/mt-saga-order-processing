@@ -2,12 +2,13 @@ using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 
 namespace MT.Saga.OrderProcessing.PaymentService.Consumers;
 
 public sealed class ProcessPaymentConsumer(
     ILogger<ProcessPaymentConsumer> logger,
-    MessagingResilienceOptions resilienceOptions) : IConsumer<EventContext<ProcessPayment>>
+    IMessagingResilienceOptionsProvider resilienceOptionsProvider) : IConsumer<EventContext<ProcessPayment>>
 {
     public async Task Consume(ConsumeContext<EventContext<ProcessPayment>> context)
     {
@@ -29,7 +30,7 @@ public sealed class ProcessPaymentConsumer(
                 metadata: context.BuildAuditMetadata());
 
             await context
-                .PublishEventContextWithRetryAsync(successEvent, logger, resilienceOptions, context.CancellationToken)
+                .PublishEventContextWithRetryAsync(successEvent, logger, resilienceOptionsProvider.Current, context.CancellationToken)
                 .ConfigureAwait(false);
 
             logger.LogInformation("Payment processed for OrderId: {OrderId}", orderId);
@@ -50,7 +51,7 @@ public sealed class ProcessPaymentConsumer(
                 metadata: context.BuildAuditMetadata());
 
             await context
-                .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptions, context.CancellationToken)
+                .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptionsProvider.Current, context.CancellationToken)
                 .ConfigureAwait(false);
         }
     }

@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
 using MT.Saga.OrderProcessing.PaymentService.Consumers;
 using MT.Saga.OrderProcessing.Saga;
@@ -153,7 +154,9 @@ public class OrderStateMachineTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(new MessagingResilienceOptions());
+        services.AddOptions<MessagingResilienceOptions>()
+            .Configure(_ => { });
+        services.AddSingleton<IMessagingResilienceOptionsProvider, MessagingResilienceOptionsProvider>();
 
         services.AddMassTransitTestHarness(x =>
         {

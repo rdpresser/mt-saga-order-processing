@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Backplane;
 using ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis;
-using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
 

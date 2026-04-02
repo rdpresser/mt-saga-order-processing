@@ -23,7 +23,7 @@ public static class DatabaseConnectionStringHelper
 
         var options = PostgresHelper.Build(configuration)
             ?? throw new InvalidOperationException(
-                "Missing database configuration. Expected ConnectionStrings:saga-db, ConnectionStrings:postgres, or Database:Postgres section.");
+                "Missing database configuration. Expected ConnectionStrings:saga-db, ConnectionStrings:postgres, or Database:Postgres + Database:Pool sections.");
 
         return options.ConnectionString;
     }
