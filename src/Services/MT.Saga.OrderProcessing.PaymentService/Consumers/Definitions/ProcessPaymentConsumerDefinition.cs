@@ -20,6 +20,8 @@ public sealed class ProcessPaymentConsumerDefinition : ConsumerDefinition<Proces
         IConsumerConfigurator<ProcessPaymentConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
+        endpointConfigurator.PrefetchCount = _options.PrefetchCount;
+
         // Apply concurrent message limit from resilience options
         endpointConfigurator.ConcurrentMessageLimit = _options.ConcurrentMessageLimit;
 

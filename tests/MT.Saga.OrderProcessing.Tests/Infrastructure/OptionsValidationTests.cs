@@ -50,6 +50,41 @@ public class ValidateOnStartHostTests
     }
 
     [Fact]
+    public async Task ValidateOnStart_should_throw_on_host_startup_when_MessagingResilienceOptions_prefetch_is_out_of_range()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        using var host = new HostBuilder()
+            .ConfigureAppConfiguration(config =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Messaging:Resilience:PrefetchCount"] = "70000",
+                    ["Messaging:Resilience:MaxRetryAttempts"] = "5",
+                    ["Messaging:Resilience:ConcurrentMessageLimit"] = "20",
+                    ["Messaging:Resilience:PublishMaxAttempts"] = "3",
+                    ["Messaging:Resilience:PublishRetryDelayMilliseconds"] = "200",
+                    ["Messaging:Resilience:KillSwitchActivationThreshold"] = "10",
+                    ["Messaging:Resilience:KillSwitchTripThreshold"] = "0.15",
+                    ["Messaging:Resilience:KillSwitchRestartTimeout"] = "00:01:00",
+                    ["Messaging:RabbitMq:Host"] = "localhost",
+                    ["Messaging:RabbitMq:Port"] = "5672",
+                    ["Messaging:RabbitMq:UserName"] = "guest",
+                    ["Messaging:RabbitMq:VirtualHost"] = "/"
+                });
+            })
+            .ConfigureServices((ctx, services) =>
+            {
+                services.AddMassTransitPoliciesOptions(ctx.Configuration);
+            })
+            .Build();
+
+        var act = () => host.StartAsync(ct);
+
+        await act.ShouldThrowAsync<OptionsValidationException>();
+    }
+
+    [Fact]
     public async Task ValidateOnStart_should_throw_on_host_startup_when_PostgresConnectionOptions_is_invalid()
     {
         var ct = TestContext.Current.CancellationToken;
