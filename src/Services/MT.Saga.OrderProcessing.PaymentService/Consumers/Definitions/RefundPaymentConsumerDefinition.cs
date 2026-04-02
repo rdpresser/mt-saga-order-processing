@@ -1,15 +1,18 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
 namespace MT.Saga.OrderProcessing.PaymentService.Consumers.Definitions;
 
 public sealed class RefundPaymentConsumerDefinition : ConsumerDefinition<RefundPaymentConsumer>
 {
-    public RefundPaymentConsumerDefinition()
+    private readonly MessagingResilienceOptions _options;
+
+    public RefundPaymentConsumerDefinition(IMessagingResilienceOptionsProvider optionsProvider)
     {
+        _options = optionsProvider.Current;
         Endpoint(e => e.Name = OrderMessagingTopology.Queues.RefundPayment);
-        ConcurrentMessageLimit = 8;
     }
 
     protected override void ConfigureConsumer(
@@ -17,16 +20,22 @@ public sealed class RefundPaymentConsumerDefinition : ConsumerDefinition<RefundP
         IConsumerConfigurator<RefundPaymentConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
+        // Apply concurrent message limit from resilience options
+        endpointConfigurator.ConcurrentMessageLimit = _options.ConcurrentMessageLimit;
+
+        // Apply Entity Framework outbox for reliable messaging
         endpointConfigurator.UseEntityFrameworkOutbox<OrderSagaDbContext>(context);
 
+        // Apply exponential retry policy from resilience options
         endpointConfigurator.UseMessageRetry(r =>
-            r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
+            r.Exponential(_options.MaxRetryAttempts, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
 
+        // Apply kill-switch circuit breaker
         endpointConfigurator.UseKillSwitch(ks =>
         {
-            ks.SetActivationThreshold(10);
-            ks.SetTripThreshold(0.15);
-            ks.SetRestartTimeout(TimeSpan.FromMinutes(1));
+            ks.SetActivationThreshold(_options.KillSwitchActivationThreshold);
+            ks.SetTripThreshold(_options.KillSwitchTripThreshold);
+            ks.SetRestartTimeout(_options.KillSwitchRestartTimeout);
         });
     }
 }

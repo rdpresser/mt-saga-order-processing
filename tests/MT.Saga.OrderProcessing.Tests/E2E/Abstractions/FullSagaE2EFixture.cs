@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using MassTransit;
-using MassTransit.RabbitMqTransport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +10,10 @@ using Microsoft.Extensions.Hosting;
 using MT.Saga.OrderProcessing.Contracts;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
-using MT.Saga.OrderProcessing.Infrastructure.Messaging.DependencyInjection;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
 using MT.Saga.OrderProcessing.InventoryService.Consumers.Definitions;
-using MT.Saga.OrderProcessing.OrderService.Extensions;
 using MT.Saga.OrderProcessing.PaymentService.Consumers.Definitions;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
@@ -503,14 +501,11 @@ WHERE ""Body"" ILIKE @orderIdMatch
 
         builder.Configuration.AddInMemoryCollection(_settings);
         builder.AddServiceDefaults();
-        builder.Services.AddWorkerMassTransit(
-            builder.Configuration,
-            registerConsumers: x =>
-            {
-                x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
-                x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
-            },
-            configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
+        builder.Services.AddWorkerServiceMassTransit(builder.Configuration, x =>
+        {
+            x.AddConsumer<ProcessPaymentConsumer, ProcessPaymentConsumerDefinition>();
+            x.AddConsumer<RefundPaymentConsumer, RefundPaymentConsumerDefinition>();
+        });
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);
@@ -527,13 +522,10 @@ WHERE ""Body"" ILIKE @orderIdMatch
 
         builder.Configuration.AddInMemoryCollection(_settings);
         builder.AddServiceDefaults();
-        builder.Services.AddWorkerMassTransit(
-            builder.Configuration,
-            registerConsumers: x =>
-            {
-                x.AddConsumer<ReserveInventoryConsumer, ReserveInventoryConsumerDefinition>();
-            },
-            configureReceiveEndpoints: (cfg, context, _) => cfg.ConfigureEndpoints(context));
+        builder.Services.AddWorkerServiceMassTransit(builder.Configuration, x =>
+        {
+            x.AddConsumer<ReserveInventoryConsumer, ReserveInventoryConsumerDefinition>();
+        });
 
         var host = builder.Build();
         await host.StartAsync(cancellationToken);

@@ -1,5 +1,4 @@
 using FluentValidation;
-using Microsoft.Extensions.Configuration;
 using Microsoft.OpenApi;
 using System.Reflection;
 using MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
