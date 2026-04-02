@@ -1,9 +1,6 @@
 using MassTransit;
-using MassTransit.RabbitMqTransport;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using MT.Saga.OrderProcessing.Saga;
-using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;

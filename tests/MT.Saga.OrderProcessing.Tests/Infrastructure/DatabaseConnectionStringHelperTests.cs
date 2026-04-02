@@ -47,8 +47,8 @@ public class DatabaseConnectionStringHelperTests
             ["Database:Postgres:Database"] = "orders",
             ["Database:Postgres:UserName"] = "postgres",
             ["Database:Postgres:Password"] = "postgres",
-            ["Database:Postgres:MinPoolSize"] = "11",
-            ["Database:Postgres:MaxPoolSize"] = "111"
+            ["Database:Pool:MinPoolSize"] = "11",
+            ["Database:Pool:MaxPoolSize"] = "111"
         });
 
         var connectionString = DatabaseConnectionStringHelper.GetRequiredConnectionString(configuration);

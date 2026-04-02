@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
 using Shouldly;
 
@@ -76,7 +77,9 @@ public class ReserveInventoryConsumerIntegrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(new MessagingResilienceOptions());
+        services.AddOptions<MessagingResilienceOptions>()
+            .Configure(_ => { });
+        services.AddSingleton<IMessagingResilienceOptionsProvider, MessagingResilienceOptionsProvider>();
 
         services.AddMassTransitTestHarness(x =>
         {

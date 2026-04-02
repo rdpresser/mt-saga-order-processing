@@ -1,6 +1,7 @@
 using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers.Definitions;
 
@@ -12,13 +13,16 @@ namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers.Definitions
 /// silencing status updates that the projector needs to receive independently.
 ///
 /// Retry IS configured so transient DB errors (e.g. connection blip) are retried.
+/// Message partitioning ensures events for the same order are processed sequentially.
 /// </summary>
 public sealed class OrderReadModelProjectorConsumerDefinition : ConsumerDefinition<OrderReadModelProjectorConsumer>
 {
-    public OrderReadModelProjectorConsumerDefinition()
+    private readonly MessagingResilienceOptions _options;
+
+    public OrderReadModelProjectorConsumerDefinition(IMessagingResilienceOptionsProvider optionsProvider)
     {
+        _options = optionsProvider.Current;
         Endpoint(e => e.Name = OrderMessagingTopology.Queues.ReadModel);
-        ConcurrentMessageLimit = 8;
     }
 
     protected override void ConfigureConsumer(
@@ -26,10 +30,16 @@ public sealed class OrderReadModelProjectorConsumerDefinition : ConsumerDefiniti
         IConsumerConfigurator<OrderReadModelProjectorConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
-        endpointConfigurator.UseMessageRetry(r =>
-            r.Exponential(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
+        // Apply concurrent message limit from resilience options
+        endpointConfigurator.ConcurrentMessageLimit = _options.ConcurrentMessageLimit;
 
-        var partition = endpointConfigurator.CreatePartitioner(ConcurrentMessageLimit ?? 8);
+        // Apply exponential retry policy from resilience options
+        endpointConfigurator.UseMessageRetry(r =>
+            r.Exponential(_options.MaxRetryAttempts, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5)));
+
+        // Partition messages by OrderId to ensure sequential processing per order
+        // This prevents concurrent updates to the same order in the read model
+        var partition = endpointConfigurator.CreatePartitioner(_options.ConcurrentMessageLimit);
         consumerConfigurator.Message<EventContext<OrderCreated>>(x => x.UsePartitioner(partition, (ConsumeContext<EventContext<OrderCreated>> m) => m.Message.Payload.OrderId));
         consumerConfigurator.Message<EventContext<PaymentProcessed>>(x => x.UsePartitioner(partition, (ConsumeContext<EventContext<PaymentProcessed>> m) => m.Message.Payload.OrderId));
         consumerConfigurator.Message<EventContext<PaymentFailed>>(x => x.UsePartitioner(partition, (ConsumeContext<EventContext<PaymentFailed>> m) => m.Message.Payload.OrderId));

@@ -1,5 +1,4 @@
 using MassTransit;
-using MassTransit.RabbitMqTransport;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging;
 

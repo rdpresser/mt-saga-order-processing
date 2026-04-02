@@ -1,7 +1,7 @@
 using MassTransit;
-using Microsoft.AspNetCore.Http;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -16,7 +16,7 @@ public static class CreateOrderEndpoint
             CreateOrderCommand command,
             EndpointPipeline<CreateOrderCommand, IResult> pipeline,
             IPublishEndpoint publishEndpoint,
-            MessagingResilienceOptions resilienceOptions,
+            IMessagingResilienceOptionsProvider resilienceOptionsProvider,
             ILoggerFactory loggerFactory,
             HttpContext httpContext,
             CancellationToken ct) =>
@@ -43,7 +43,7 @@ public static class CreateOrderEndpoint
                     metadata: metadata);
 
                 await publishEndpoint
-                    .PublishEventContextWithRetryAsync(eventContext, logger, resilienceOptions, ct)
+                    .PublishEventContextWithRetryAsync(eventContext, logger, resilienceOptionsProvider.Current, ct)
                     .ConfigureAwait(false);
 
                 return Results.Created($"/orders/{orderId}", new CreateOrderResponse(orderId));

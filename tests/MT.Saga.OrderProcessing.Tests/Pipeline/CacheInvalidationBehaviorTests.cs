@@ -1,4 +1,3 @@
-using MT.Saga.OrderProcessing.Infrastructure.Caching.Abstractions;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
 using MT.Saga.OrderProcessing.Tests.TestHelpers.Fakes;
 using Shouldly;

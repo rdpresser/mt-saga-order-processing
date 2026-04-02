@@ -2,12 +2,13 @@ using MassTransit;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 
 namespace MT.Saga.OrderProcessing.InventoryService.Consumers;
 
 public sealed class ReserveInventoryConsumer(
     ILogger<ReserveInventoryConsumer> logger,
-    MessagingResilienceOptions resilienceOptions) : IConsumer<EventContext<ReserveInventory>>
+    IMessagingResilienceOptionsProvider resilienceOptionsProvider) : IConsumer<EventContext<ReserveInventory>>
 {
     public async Task Consume(ConsumeContext<EventContext<ReserveInventory>> context)
     {
@@ -37,7 +38,7 @@ public sealed class ReserveInventoryConsumer(
                     metadata: context.BuildAuditMetadata());
 
                 await context
-                    .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptions, context.CancellationToken)
+                    .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptionsProvider.Current, context.CancellationToken)
                     .ConfigureAwait(false);
 
                 return;
@@ -55,7 +56,7 @@ public sealed class ReserveInventoryConsumer(
                 metadata: context.BuildAuditMetadata());
 
             await context
-                .PublishEventContextWithRetryAsync(successEvent, logger, resilienceOptions, context.CancellationToken)
+                .PublishEventContextWithRetryAsync(successEvent, logger, resilienceOptionsProvider.Current, context.CancellationToken)
                 .ConfigureAwait(false);
 
             logger.LogInformation("Inventory reserved for OrderId: {OrderId}", orderId);
@@ -76,7 +77,7 @@ public sealed class ReserveInventoryConsumer(
                 metadata: context.BuildAuditMetadata());
 
             await context
-                .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptions, context.CancellationToken)
+                .PublishEventContextWithRetryAsync(failedEvent, logger, resilienceOptionsProvider.Current, context.CancellationToken)
                 .ConfigureAwait(false);
         }
     }
