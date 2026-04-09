@@ -17,6 +17,12 @@ public sealed class RabbitMqOrchestrationOptions
     public string Password { get; set; } = "guest";
 }
 
+public sealed class MessagingTopologyOrchestrationOptions
+{
+    public string EventsExchangeName { get; set; } = "orders.events-exchange";
+    public string EventsExchangeType { get; set; } = "topic";
+}
+
 public sealed class PostgresOrchestrationOptions
 {
     public string Host { get; set; } = "localhost";

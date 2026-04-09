@@ -47,13 +47,14 @@ public static class OrderSagaConfiguration
     /// </summary>
     public static void ConfigureOrderSagaReceiveEndpoint(
         this IRabbitMqBusFactoryConfigurator busConfigurator,
-        IRegistrationContext context)
+        IRegistrationContext context,
+        MessagingTopologyOptions topologyOptions)
     {
         busConfigurator.ReceiveEndpoint(OrderMessagingTopology.Queues.Saga, endpoint =>
         {
             // Bind this queue to the shared events topic exchange.
             // All order domain events arrive here so the saga can process them.
-            endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
+            endpoint.ConfigureOrderEventsConsumption(topologyOptions);
 
             // ConfigureSaga will invoke OrderStateDefinition.ConfigureSaga which applies
             // retry, kill switch, and partitioned concurrency.

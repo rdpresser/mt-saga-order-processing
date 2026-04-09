@@ -287,6 +287,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
     public async Task PublishInventoryFailedAsync(Guid orderId, CancellationToken cancellationToken)
     {
+        var topologyOptions = GetTopologyOptions();
         var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
 
         var bus = Bus.Factory.CreateUsingRabbitMq(cfg =>
@@ -297,8 +298,8 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
                 h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
             });
 
-            cfg.Message<EventContext<InventoryFailed>>(x => x.SetEntityName(OrderMessagingTopology.ExchangeName));
-            cfg.Publish<EventContext<InventoryFailed>>(x => x.ExchangeType = "topic");
+            cfg.Message<EventContext<InventoryFailed>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
+            cfg.Publish<EventContext<InventoryFailed>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
         });
 
         await bus.StartAsync(cancellationToken);
@@ -340,6 +341,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
 
     public async Task PublishPaymentFailedAsync(Guid orderId, CancellationToken cancellationToken)
     {
+        var topologyOptions = GetTopologyOptions();
         var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
 
         var bus = Bus.Factory.CreateUsingRabbitMq(cfg =>
@@ -350,8 +352,8 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
                 h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
             });
 
-            cfg.Message<EventContext<PaymentFailed>>(x => x.SetEntityName(OrderMessagingTopology.ExchangeName));
-            cfg.Publish<EventContext<PaymentFailed>>(x => x.ExchangeType = "topic");
+            cfg.Message<EventContext<PaymentFailed>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
+            cfg.Publish<EventContext<PaymentFailed>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
         });
 
         await bus.StartAsync(cancellationToken);
@@ -589,6 +591,8 @@ WHERE ""Body"" ILIKE @orderIdMatch
         _settings["Messaging:RabbitMq:UserName"] = "guest";
         _settings["Messaging:RabbitMq:Password"] = "guest";
         _settings["Messaging:RabbitMq:VirtualHost"] = "/";
+        _settings["Messaging:Topology:EventsExchangeName"] = OrderMessagingTopology.DefaultEventsExchangeName;
+        _settings["Messaging:Topology:EventsExchangeType"] = OrderMessagingTopology.DefaultEventsExchangeType;
 
         _settings["Cache:Redis:Host"] = _redisContainer.Hostname;
         _settings["Cache:Redis:Port"] = _redisContainer.GetMappedPublicPort(6379).ToString();
@@ -612,6 +616,15 @@ WHERE ""Body"" ILIKE @orderIdMatch
         return _settings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
             ? value
             : throw new InvalidOperationException($"Required setting '{key}' is missing.");
+    }
+
+    private MessagingTopologyOptions GetTopologyOptions()
+    {
+        return new MessagingTopologyOptions
+        {
+            EventsExchangeName = GetRequiredSetting("Messaging:Topology:EventsExchangeName"),
+            EventsExchangeType = GetRequiredSetting("Messaging:Topology:EventsExchangeType")
+        };
     }
 
     private static bool IsHostStopped(IHost host)

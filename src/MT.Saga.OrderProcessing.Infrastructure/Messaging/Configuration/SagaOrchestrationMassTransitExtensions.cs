@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Consumers.Definitions;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Observers;
+using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.Infrastructure.Persistence;
 
 namespace MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
@@ -31,16 +32,17 @@ public static class SagaOrchestrationMassTransitExtensions
             x.UsingRabbitMq((context, cfg) =>
             {
                 var factory = context.GetRequiredService<RabbitMqConnectionFactory>();
+                var topologyOptions = context.GetRequiredService<IMessagingTopologyOptionsProvider>();
                 cfg.ConfigureRabbitMqHost(factory.Options);
                 cfg.ConnectConsumeObserver(context.GetRequiredService<LoggingConsumeObserver>());
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
-                cfg.ConfigureOrderTopologyPublishing();
+                cfg.ConfigureOrderTopologyPublishing(topologyOptions.Current);
 
-                cfg.ConfigureOrderSagaReceiveEndpoint(context);
+                cfg.ConfigureOrderSagaReceiveEndpoint(context, topologyOptions.Current);
 
                 cfg.ReceiveEndpoint(OrderMessagingTopology.Queues.ReadModel, endpoint =>
                 {
-                    endpoint.ConfigureOrderEventsConsumption(OrderMessagingTopology.ExchangeName);
+                    endpoint.ConfigureOrderEventsConsumption(topologyOptions.Current);
                     endpoint.ConfigureConsumer<OrderReadModelProjectorConsumer>(context);
                 });
             });
@@ -77,10 +79,11 @@ public static class SagaOrchestrationMassTransitExtensions
             x.UsingRabbitMq((context, cfg) =>
             {
                 var factory = context.GetRequiredService<RabbitMqConnectionFactory>();
+                var topologyOptions = context.GetRequiredService<IMessagingTopologyOptionsProvider>();
                 cfg.ConfigureRabbitMqHost(factory.Options);
                 cfg.ConnectConsumeObserver(context.GetRequiredService<LoggingConsumeObserver>());
                 cfg.ConnectPublishObserver(context.GetRequiredService<LoggingPublishObserver>());
-                cfg.ConfigureOrderTopologyPublishing();
+                cfg.ConfigureOrderTopologyPublishing(topologyOptions.Current);
                 // ConsumerDefinitions declare endpoint name, retry, kill switch, and EF outbox.
                 // ConfigureEndpoints materialises RabbitMQ receive endpoints from those definitions.
                 cfg.ConfigureEndpoints(context);

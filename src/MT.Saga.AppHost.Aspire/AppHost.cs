@@ -20,6 +20,10 @@ public static class Program
             .GetSection("Messaging:RabbitMq")
             .Get<RabbitMqOrchestrationOptions>()
             ?? throw new InvalidOperationException("RabbitMQ configuration section 'Messaging:RabbitMq' is missing or invalid.");
+        var topologyOptions = builder.Configuration
+            .GetSection("Messaging:Topology")
+            .Get<MessagingTopologyOrchestrationOptions>()
+            ?? throw new InvalidOperationException("Messaging topology section 'Messaging:Topology' is missing or invalid.");
         var postgresOptions = builder.Configuration
             .GetSection("Database:Postgres")
             .Get<PostgresOrchestrationOptions>()
@@ -80,7 +84,9 @@ public static class Program
             .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
             .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
             .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
-            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword)
+            .WithEnvironment("Messaging__Topology__EventsExchangeName", topologyOptions.EventsExchangeName)
+            .WithEnvironment("Messaging__Topology__EventsExchangeType", topologyOptions.EventsExchangeType);
         if (redisPassword is not null)
         {
             orderService = orderService.WithEnvironment("Cache__Redis__Password", redisPassword);
@@ -105,7 +111,9 @@ public static class Program
             .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
             .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
             .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
-            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword)
+            .WithEnvironment("Messaging__Topology__EventsExchangeName", topologyOptions.EventsExchangeName)
+            .WithEnvironment("Messaging__Topology__EventsExchangeType", topologyOptions.EventsExchangeType);
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -126,7 +134,9 @@ public static class Program
             .WithEnvironment("Messaging__RabbitMq__Host", rabbitMqOptions.Host)
             .WithEnvironment("Messaging__RabbitMq__Port", rabbitMqOptions.Port.ToString())
             .WithEnvironment("Messaging__RabbitMq__UserName", rabbitMqOptions.Username)
-            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword);
+            .WithEnvironment("Messaging__RabbitMq__Password", rabbitMqPassword)
+            .WithEnvironment("Messaging__Topology__EventsExchangeName", topologyOptions.EventsExchangeName)
+            .WithEnvironment("Messaging__Topology__EventsExchangeType", topologyOptions.EventsExchangeType);
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {

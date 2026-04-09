@@ -4,7 +4,10 @@ namespace MT.Saga.OrderProcessing.Infrastructure.Messaging;
 
 public static class OrderMessagingTopology
 {
-    public const string ExchangeName = "orders.events-exchange";
+    public const string DefaultEventsExchangeName = "orders.events-exchange";
+    public const string DefaultEventsExchangeType = "topic";
+
+    public const string ExchangeName = DefaultEventsExchangeName;
 
     public const string SourceService = "orders";
     public const string EntityName = "order";
