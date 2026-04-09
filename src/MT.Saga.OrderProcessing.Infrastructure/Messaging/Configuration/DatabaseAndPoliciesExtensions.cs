@@ -88,6 +88,14 @@ public static class MassTransitPoliciesExtensions
 
         services.AddSingleton<IMessagingResilienceOptionsProvider, MessagingResilienceOptionsProvider>();
 
+        services.AddOptions<MessagingTopologyOptions>()
+            .Bind(configuration.GetSection("Messaging:Topology"))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.EventsExchangeName), "Messaging:Topology:EventsExchangeName is required")
+            .Validate(o => o.EventsExchangeName.EndsWith("-exchange", StringComparison.OrdinalIgnoreCase), "Messaging:Topology:EventsExchangeName must end with '-exchange'")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.EventsExchangeType), "Messaging:Topology:EventsExchangeType is required")
+            .ValidateOnStart();
+        services.AddSingleton<IMessagingTopologyOptionsProvider, MessagingTopologyOptionsProvider>();
+
         // Register RabbitMQ options and connection factory for DI-based transport configuration.
         // Binds from appsettings.{Environment}.json section "Messaging:RabbitMq".
         services.AddOptions<RabbitMqOptions>()

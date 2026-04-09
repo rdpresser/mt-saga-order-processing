@@ -10,7 +10,7 @@ public sealed class RabbitMqOptions
     public string UserName { get; set; } = "guest";
     public string Password { get; set; } = "guest";
     public string VirtualHost { get; set; } = "/";
-    public string Exchange { get; set; } = "mt-saga-order-processing.events";
+    public string Exchange { get; set; } = OrderMessagingTopology.DefaultEventsExchangeName;
     public bool AutoProvision { get; set; } = true;
     public bool Durable { get; set; } = true;
     public bool UseQuorumQueues { get; set; }

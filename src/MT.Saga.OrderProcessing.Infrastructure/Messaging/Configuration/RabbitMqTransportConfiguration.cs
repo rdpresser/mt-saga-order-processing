@@ -50,22 +50,25 @@ public static class RabbitMqTransportConfiguration
     /// Defines which events are published and their exchange properties.
     /// </summary>
     public static void ConfigureOrderTopologyPublishing(
-        this IRabbitMqBusFactoryConfigurator cfg)
+        this IRabbitMqBusFactoryConfigurator cfg,
+        MessagingTopologyOptions topologyOptions)
     {
-        ConfigureTopicEnvelope<OrderCreated>(cfg);
-        ConfigureTopicEnvelope<PaymentProcessed>(cfg);
-        ConfigureTopicEnvelope<PaymentFailed>(cfg);
-        ConfigureTopicEnvelope<InventoryReserved>(cfg);
-        ConfigureTopicEnvelope<InventoryFailed>(cfg);
-        ConfigureTopicEnvelope<OrderConfirmed>(cfg);
-        ConfigureTopicEnvelope<OrderCancelled>(cfg);
+        ConfigureTopicEnvelope<OrderCreated>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<PaymentProcessed>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<PaymentFailed>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<InventoryReserved>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<InventoryFailed>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<OrderConfirmed>(cfg, topologyOptions);
+        ConfigureTopicEnvelope<OrderCancelled>(cfg, topologyOptions);
     }
 
-    private static void ConfigureTopicEnvelope<TPayload>(IRabbitMqBusFactoryConfigurator cfg)
+    private static void ConfigureTopicEnvelope<TPayload>(
+        IRabbitMqBusFactoryConfigurator cfg,
+        MessagingTopologyOptions topologyOptions)
         where TPayload : class
     {
-        cfg.Message<EventContext<TPayload>>(x => x.SetEntityName(OrderMessagingTopology.ExchangeName));
-        cfg.Publish<EventContext<TPayload>>(x => x.ExchangeType = "topic");
+        cfg.Message<EventContext<TPayload>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
+        cfg.Publish<EventContext<TPayload>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
     }
 
     private static int _conventionsRegisteredFlag;
