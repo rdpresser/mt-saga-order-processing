@@ -52,50 +52,58 @@ Although implemented as a monorepo for simplicity, each service is logically iso
 
 ### Happy Path
 
-```text
-         ┌──────────────┐
-         │ Order Service │  HTTP POST /orders
-         └──────┬────────┘
-                │ EventContext<OrderCreated>
-                ▼
-         ┌──────────────┐
-         │     Saga     │  OrderStateMachine
-         └──────┬───────┘
-                │ Send EventContext<ProcessPayment>
-                ▼
-        ┌──────────────────┐
-        │  Payment Service │
-        └────────┬─────────┘
-                 │ Publish EventContext<PaymentProcessed>
-                 ▼
-         ┌──────────────┐
-         │     Saga     │
-         └──────┬───────┘
-                │ Send EventContext<ReserveInventory>
-                ▼
-        ┌───────────────────┐
-        │  Inventory Service │
-        └────────┬──────────┘
-                 │ Publish EventContext<InventoryReserved>
-                 ▼
-         ┌──────────────┐
-         │     Saga     │  → Publish EventContext<OrderConfirmed>
-         └──────────────┘    Finalize (instance removed)
+```mermaid
+sequenceDiagram
+    participant Client
+    participant OrderService
+    participant Saga as Saga (OrderStateMachine)
+    participant PaymentService
+    participant InventoryService
+    participant ReadModel as ReadModel Projector
+
+    Client->>OrderService: HTTP POST /orders
+    OrderService->>Saga: Publish EventContext#lt;OrderCreated#gt;
+    Saga->>PaymentService: Send EventContext#lt;ProcessPayment#gt;
+    PaymentService->>Saga: Publish EventContext#lt;PaymentProcessed#gt;
+    Saga->>InventoryService: Send EventContext#lt;ReserveInventory#gt;
+    InventoryService->>Saga: Publish EventContext#lt;InventoryReserved#gt;
+    Saga->>Saga: Finalize (instance removed)
+    Saga-->>ReadModel: Publish EventContext#lt;OrderConfirmed#gt;
+    ReadModel-->>ReadModel: Project + invalidate FusionCache tag
 ```
 
 ### Failure / Compensation Path
 
-```text
-  InventoryFailed
-        ▼
-  Saga → Send EventContext<RefundPayment>   → Payment Service (fire-and-forget log)
-       → Publish EventContext<OrderCancelled>
-       → Finalize (instance removed)
+```mermaid
+sequenceDiagram
+    participant Saga as Saga (OrderStateMachine)
+    participant PaymentService
+    participant InventoryService
+    participant ReadModel as ReadModel Projector
 
-  PaymentFailed
-        ▼
-  Saga → Publish EventContext<OrderCancelled>
-       → Finalize (instance removed)
+    alt PaymentFailed
+        PaymentService->>Saga: Publish EventContext#lt;PaymentFailed#gt;
+        Saga-->>ReadModel: Publish EventContext#lt;OrderCancelled#gt;
+        Saga->>Saga: Finalize (instance removed)
+    else InventoryFailed
+        InventoryService->>Saga: Publish EventContext#lt;InventoryFailed#gt;
+        Saga->>PaymentService: Send EventContext#lt;RefundPayment#gt; (fire-and-forget)
+        Saga-->>ReadModel: Publish EventContext#lt;OrderCancelled#gt;
+        Saga->>Saga: Finalize (instance removed)
+    end
+```
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> PaymentProcessing : OrderCreated
+    PaymentProcessing --> InventoryReserving : PaymentProcessed
+    PaymentProcessing --> Cancelled : PaymentFailed
+    InventoryReserving --> Confirmed : InventoryReserved
+    InventoryReserving --> Cancelled : InventoryFailed (+ RefundPayment)
+    Confirmed --> [*] : Finalize → OrderConfirmed
+    Cancelled --> [*] : Finalize → OrderCancelled
 ```
 
 ### Read Model Projection
