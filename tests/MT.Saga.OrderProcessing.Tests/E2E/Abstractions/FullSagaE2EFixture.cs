@@ -285,61 +285,31 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         return false;
     }
 
-    public async Task PublishInventoryFailedAsync(Guid orderId, CancellationToken cancellationToken)
+    public Task PublishInventoryFailedAsync(Guid orderId, CancellationToken cancellationToken)
     {
-        var topologyOptions = GetTopologyOptions();
-        var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
+        var @event = EventContext.Create(
+            sourceService: OrderMessagingTopology.SourceService,
+            entity: OrderMessagingTopology.EntityName,
+            action: OrderMessagingTopology.Actions.InventoryFailed,
+            payload: new InventoryFailed(orderId));
 
-        var bus = Bus.Factory.CreateUsingRabbitMq(cfg =>
-        {
-            cfg.Host(hostUri, h =>
-            {
-                h.Username(GetRequiredSetting("Messaging:RabbitMq:UserName"));
-                h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
-            });
-
-            cfg.Message<EventContext<InventoryFailed>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
-            cfg.Publish<EventContext<InventoryFailed>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
-        });
-
-        await bus.StartAsync(cancellationToken);
-        try
-        {
-            var @event = EventContext.Create(
-                sourceService: OrderMessagingTopology.SourceService,
-                entity: OrderMessagingTopology.EntityName,
-                action: OrderMessagingTopology.Actions.InventoryFailed,
-                payload: new InventoryFailed(orderId));
-
-            await bus.Publish(@event, context =>
-            {
-                var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
-                    @event.SourceService,
-                    @event.Entity,
-                    @event.Action);
-
-                context.SetRoutingKey(routingKey);
-                if (context.TryGetPayload<RabbitMqSendContext>(out var rabbitMqSendContext))
-                {
-                    rabbitMqSendContext.RoutingKey = routingKey;
-                }
-            }, cancellationToken);
-        }
-        finally
-        {
-            await bus.StopAsync(cancellationToken);
-            if (bus is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
-            else if (bus is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
-        }
+        return PublishEventToExchangeAsync(@event, cancellationToken);
     }
 
-    public async Task PublishPaymentFailedAsync(Guid orderId, CancellationToken cancellationToken)
+    public Task PublishPaymentFailedAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var @event = EventContext.Create(
+            sourceService: OrderMessagingTopology.SourceService,
+            entity: OrderMessagingTopology.EntityName,
+            action: OrderMessagingTopology.Actions.PaymentFailed,
+            payload: new PaymentFailed(orderId));
+
+        return PublishEventToExchangeAsync(@event, cancellationToken);
+    }
+
+    private async Task PublishEventToExchangeAsync<TPayload>(
+        EventContext<TPayload> @event,
+        CancellationToken cancellationToken) where TPayload : class
     {
         var topologyOptions = GetTopologyOptions();
         var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
@@ -352,26 +322,20 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
                 h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
             });
 
-            cfg.Message<EventContext<PaymentFailed>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
-            cfg.Publish<EventContext<PaymentFailed>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
+            cfg.Message<EventContext<TPayload>>(x => x.SetEntityName(topologyOptions.EventsExchangeName));
+            cfg.Publish<EventContext<TPayload>>(x => x.ExchangeType = topologyOptions.EventsExchangeType);
         });
 
         await bus.StartAsync(cancellationToken);
         try
         {
-            var @event = EventContext.Create(
-                sourceService: OrderMessagingTopology.SourceService,
-                entity: OrderMessagingTopology.EntityName,
-                action: OrderMessagingTopology.Actions.PaymentFailed,
-                payload: new PaymentFailed(orderId));
+            var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
+                @event.SourceService,
+                @event.Entity,
+                @event.Action);
 
             await bus.Publish(@event, context =>
             {
-                var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
-                    @event.SourceService,
-                    @event.Entity,
-                    @event.Action);
-
                 context.SetRoutingKey(routingKey);
                 if (context.TryGetPayload<RabbitMqSendContext>(out var rabbitMqSendContext))
                 {

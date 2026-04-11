@@ -9,8 +9,9 @@ public static class OrderMessagingTopology
 
     public const string ExchangeName = DefaultEventsExchangeName;
 
-    public const string SourceService = "orders";
-    public const string EntityName = "order";
+    // Delegated to Contracts so the Saga project (which cannot reference Infrastructure) shares the same values.
+    public const string SourceService = OrderTopologyConstants.SourceService;
+    public const string EntityName = OrderTopologyConstants.EntityName;
 
     /// <summary>
     /// Canonical queue names for all receive endpoints.
@@ -26,14 +27,30 @@ public static class OrderMessagingTopology
         public const string ReserveInventory = OrderQueueNames.ReserveInventory;
     }
 
+    /// <summary>
+    /// Action labels for domain events — delegated to Contracts so the Saga can also use them
+    /// without referencing Infrastructure.
+    /// </summary>
     public static class Actions
     {
-        public const string Created = "created";
-        public const string PaymentProcessed = "payment-processed";
-        public const string PaymentFailed = "payment-failed";
-        public const string InventoryReserved = "inventory-reserved";
-        public const string InventoryFailed = "inventory-failed";
-        public const string Confirmed = "confirmed";
-        public const string Cancelled = "cancelled";
+        public const string Created = OrderTopologyConstants.EventActions.Created;
+        public const string PaymentProcessed = OrderTopologyConstants.EventActions.PaymentProcessed;
+        public const string PaymentFailed = OrderTopologyConstants.EventActions.PaymentFailed;
+        public const string InventoryReserved = OrderTopologyConstants.EventActions.InventoryReserved;
+        public const string InventoryFailed = OrderTopologyConstants.EventActions.InventoryFailed;
+        public const string Confirmed = OrderTopologyConstants.EventActions.Confirmed;
+        public const string Cancelled = OrderTopologyConstants.EventActions.Cancelled;
+    }
+
+    /// <summary>
+    /// Action labels used when the Saga forwards commands to worker queues.
+    /// These are metadata-only values in the EventContext envelope — they are NOT
+    /// routing key segments, since commands are sent directly to queue URIs.
+    /// </summary>
+    public static class CommandActions
+    {
+        public const string ProcessPayment = OrderTopologyConstants.CommandActions.ProcessPayment;
+        public const string ReserveInventory = OrderTopologyConstants.CommandActions.ReserveInventory;
+        public const string RefundPayment = OrderTopologyConstants.CommandActions.RefundPayment;
     }
 }
