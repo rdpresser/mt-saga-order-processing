@@ -1,12 +1,12 @@
 # MT Saga Order Processing
 
-[![.NET](https://img.shields.io/badge/.NET-10-blue)]()
-[![MassTransit](https://img.shields.io/badge/MassTransit-8.x-purple)]()
-[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Message%20Broker-orange)]()
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)]()
-[![Redis](https://img.shields.io/badge/Redis-Cache-red)]()
-[![Tests](https://img.shields.io/badge/Tests-135%20passing-brightgreen)]()
-[![Architecture](https://img.shields.io/badge/Architecture-Saga%20Orchestration-green)]()
+![.NET](https://img.shields.io/badge/.NET-10-blue)
+![MassTransit](https://img.shields.io/badge/MassTransit-8.x-purple)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Message%20Broker-orange)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
+![Redis](https://img.shields.io/badge/Redis-Cache-red)
+![Tests](https://img.shields.io/badge/Tests-135%20passing-brightgreen)
+![Architecture](https://img.shields.io/badge/Architecture-Saga%20Orchestration-green)
 
 ---
 
@@ -205,6 +205,22 @@ Services (when running via Aspire):
 - **RabbitMQ Management:** http://localhost:15672 (guest/guest)
 - **PostgreSQL:** localhost:5432
 
+## Performance Tests (k6)
+
+A minimal k6 package is available in `k6/` for smoke and load validation of the order creation flow.
+Default API target is configured in `k6/.env` (`BASE_URL=http://localhost:5214`).
+
+```powershell
+pwsh ./k6/run.ps1 -Scenario smoke
+pwsh ./k6/run.ps1 -Scenario load
+```
+
+Use `-BaseUrl` to target another environment:
+
+```powershell
+pwsh ./k6/run.ps1 -Scenario smoke -BaseUrl http://localhost:5001
+```
+
 ---
 
 ## Trigger Flow
@@ -215,7 +231,7 @@ Services (when running via Aspire):
 POST /orders
 Content-Type: application/json
 
-{ "customerId": "...", "items": [...] }
+{ "amount": 149.90, "customerEmail": "customer@example.com" }
 ```
 
 This publishes `EventContext<OrderCreated>` to RabbitMQ, which the Saga consumes and orchestrates the full payment → inventory → confirmation flow.

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -140,6 +141,88 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         return payload!.OrderId;
     }
 
+    public async Task<EventContext<OrderCreated>> CreateOrderAndCapturePublishedOrderCreatedAsync(
+        decimal amount,
+        string customerEmail,
+        IReadOnlyDictionary<string, string> headers,
+        CancellationToken cancellationToken)
+    {
+        var topologyOptions = GetTopologyOptions();
+        var hostUri = new Uri($"rabbitmq://{GetRequiredSetting("Messaging:RabbitMq:Host")}:{GetRequiredSetting("Messaging:RabbitMq:Port")}");
+        var routingKey = TopicRoutingKeyHelper.GenerateRoutingKey(
+            OrderMessagingTopology.SourceService,
+            OrderMessagingTopology.EntityName,
+            OrderMessagingTopology.Actions.Created);
+        var endpointName = $"order-created-capture-{Guid.NewGuid():N}";
+        var capturedMessage = new TaskCompletionSource<EventContext<OrderCreated>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var bus = Bus.Factory.CreateUsingRabbitMq(cfg =>
+        {
+            cfg.Host(hostUri, h =>
+            {
+                h.Username(GetRequiredSetting("Messaging:RabbitMq:UserName"));
+                h.Password(GetRequiredSetting("Messaging:RabbitMq:Password"));
+            });
+
+            cfg.ReceiveEndpoint(endpointName, endpoint =>
+            {
+                endpoint.Durable = false;
+                endpoint.AutoDelete = true;
+                endpoint.ConfigureConsumeTopology = false;
+                endpoint.Bind(topologyOptions.EventsExchangeName, bind =>
+                {
+                    bind.ExchangeType = topologyOptions.EventsExchangeType;
+                    bind.RoutingKey = routingKey;
+                });
+
+                endpoint.Handler<EventContext<OrderCreated>>(context =>
+                {
+                    capturedMessage.TrySetResult(context.Message);
+                    return Task.CompletedTask;
+                });
+            });
+        });
+
+        await bus.StartAsync(cancellationToken);
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
+            {
+                Content = new StringContent(
+                    $"{{\"amount\":{amount.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"customerEmail\":\"{customerEmail}\"}}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+
+            try
+            {
+                foreach (var header in headers)
+                {
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+
+                var response = await OrderClient.SendAsync(request, cancellationToken);
+                response.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+                var completed = await Task.WhenAny(capturedMessage.Task, Task.Delay(TimeSpan.FromSeconds(20), cancellationToken));
+                if (completed != capturedMessage.Task)
+                {
+                    throw new InvalidOperationException("OrderCreated event was not captured within the expected timeout.");
+                }
+
+                return await capturedMessage.Task;
+            }
+            finally
+            {
+                request.Dispose();
+            }
+        }
+        finally
+        {
+            await bus.StopAsync(cancellationToken);
+        }
+    }
+
     public async Task StopInventoryWorkerAsync(CancellationToken cancellationToken)
     {
         if (_inventoryWorkerHost is null)
@@ -275,6 +358,24 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         {
             var response = await GetOrderByIdAsync(orderId, cancellationToken);
             if (response is not null && string.Equals(response.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        return false;
+    }
+
+    public async Task<bool> WaitForOrderToAppearInReadModelAsync(Guid orderId, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var started = DateTimeOffset.UtcNow;
+
+        while (DateTimeOffset.UtcNow - started < timeout)
+        {
+            var response = await GetOrderByIdAsync(orderId, cancellationToken);
+            if (response is not null)
             {
                 return true;
             }

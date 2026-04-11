@@ -30,6 +30,7 @@
     <Project Path="src/Services/MT.Saga.OrderProcessing.PaymentService/MT.Saga.OrderProcessing.PaymentService.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MT.Saga.OrderProcessing.Architecture.Tests/MT.Saga.OrderProcessing.Architecture.Tests.csproj" />
     <Project Path="tests/MT.Saga.OrderProcessing.Tests/MT.Saga.OrderProcessing.Tests.csproj" />
   </Folder>
 </Solution>
