@@ -1,5 +1,4 @@
 using FluentValidation;
-using FluentValidation.Results;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
 using Shouldly;
 
@@ -89,7 +88,9 @@ public class ValidationBehaviorTests
 
     private sealed record FakeRequest(string Value);
 
-    private sealed class PassingValidator : AbstractValidator<FakeRequest>;
+    private sealed class PassingValidator : AbstractValidator<FakeRequest>
+    {
+    }
 
     private sealed class FailingValidator : AbstractValidator<FakeRequest>
     {

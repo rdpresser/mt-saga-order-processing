@@ -306,7 +306,7 @@ public sealed class FullSagaE2ETests
     }
 
     [Fact]
-    public async Task Should_return_bad_request_for_invalid_guid_in_get_by_id()
+    public async Task Should_return_bad_request_for_empty_guid_in_get_by_id()
     {
         var ct = TestContext.Current.CancellationToken;
 

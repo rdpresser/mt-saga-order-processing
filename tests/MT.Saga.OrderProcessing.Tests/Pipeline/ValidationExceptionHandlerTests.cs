@@ -30,7 +30,7 @@ public class ValidationExceptionHandlerTests
         httpContext.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
 
         httpContext.Response.Body.Position = 0;
-        var body = await JsonDocument.ParseAsync(httpContext.Response.Body, cancellationToken: ct);
+        using var body = await JsonDocument.ParseAsync(httpContext.Response.Body, cancellationToken: ct);
         var errors = body.RootElement.GetProperty("errors");
         errors.GetProperty("Email").GetArrayLength().ShouldBe(1);
         errors.GetProperty("Amount").GetArrayLength().ShouldBe(1);
@@ -68,7 +68,7 @@ public class ValidationExceptionHandlerTests
         await handler.TryHandleAsync(httpContext, exception, ct);
 
         httpContext.Response.Body.Position = 0;
-        var body = await JsonDocument.ParseAsync(httpContext.Response.Body, cancellationToken: ct);
+        using var body = await JsonDocument.ParseAsync(httpContext.Response.Body, cancellationToken: ct);
         var errors = body.RootElement.GetProperty("errors");
         errors.GetProperty("Email").GetArrayLength().ShouldBe(2);
         errors.GetProperty("Name").GetArrayLength().ShouldBe(1);
