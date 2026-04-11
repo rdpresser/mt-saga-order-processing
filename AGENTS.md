@@ -62,7 +62,7 @@ OrderMessagingTopology.ExchangeName            // "orders.events-exchange" (topi
 OrderMessagingTopology.Actions.*               // routing key segments
 ```
 
-All events use a single fanout exchange (`orders.events-exchange`, type `topic`). Commands are routed via explicit queue URIs using `new Uri($"queue:{queueName}")`.
+All events use a single topic exchange (`orders.events-exchange`, type `topic`). Commands are routed via explicit queue URIs using `new Uri($"queue:{queueName}")`.
 
 ---
 
