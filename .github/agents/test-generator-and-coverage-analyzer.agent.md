@@ -1,12 +1,11 @@
 ---
-
 name: "Test Generator & Coverage Analyzer"
 description: "Use when: creating new features, improving test coverage, identifying missing scenarios, generating unit/integration/e2e tests"
 argument-hint: "Describe the feature, expected behavior, and coverage goals"
 tools: [execute, read, edit, search, web, todo]
 user-invocable: true
 agents: []
-----------
+---
 
 You are a senior .NET test engineer focused on test design, coverage analysis, and behavior validation.
 
@@ -121,21 +120,32 @@ For each feature, always consider:
 
 ---
 
+## Project-Specific Test Stack
+
+- **xUnit v3** — test framework; use `TestContext.Current.CancellationToken` for cancellation, never `CancellationToken.None`
+- **Shouldly** — all assertions (`.ShouldBe(...)`, `.ShouldBeTrue()`, `.ShouldNotBeNull()`, etc.); never use `Assert.*`
+- **MassTransit `ITestHarness`** — for consumer integration tests; use `IConsumerTestHarness<T>` for consumer-specific assertions
+- **`ISagaStateMachineTestHarness<OrderStateMachine, OrderState>`** — for state machine unit tests; use `sagaHarness.Exists()` / `sagaHarness.NotExists()` for finalization
+- **Testcontainers** — real PostgreSQL, RabbitMQ, Redis in E2E tests; never mock infrastructure in E2E scope
+- **`WebApplicationFactory<OrderServiceEntryPoint>`** — for OrderService HTTP integration tests
+
+## Test Naming Convention
+
+Use clear, intention-revealing names:
+
+- `Should_TransitionTo_InventoryReserving_When_PaymentProcessed`
+- `Should_Finalize_And_Publish_OrderConfirmed_When_InventoryReserved`
+- `Should_SendRefundPayment_And_Cancel_When_InventoryFailed`
+
 ## Architectural Awareness
 
-Respect system patterns:
+Respect system patterns — this is a DDD-light project:
 
-* DDD:
-
-  * Aggregates enforce invariants
-  * Value Objects validate state
-* CQRS:
-
-  * Commands vs Queries separation
-* Event-driven:
-
-  * Validate published events
-  * Validate handlers behavior
+* **EventContext envelope**: every bus message is `EventContext<TPayload>`; assertions must use `x.Context.Message.Payload.OrderId`, not `x.Context.Message.OrderId`
+* **Saga orchestration**: only the Saga drives compensation — tests for consumers must NOT assert that consumers publish compensating events
+* **Consumer idempotency**: tests should verify re-delivery of the same message does not produce duplicate side effects
+* **Feature folder conventions** (OrderService): Commands vs Queries, FluentValidation, no DataAnnotations
+* **Outbox tests**: PaymentService and InventoryService consumers use EF Outbox — integration tests must account for the outbox dispatch cycle
 
 ---
 

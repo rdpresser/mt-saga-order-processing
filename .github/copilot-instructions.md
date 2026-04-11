@@ -403,6 +403,25 @@ DDD is NOT applied as:
 
 # Contracts
 
+## EventContext envelope (mandatory)
+
+Every message on the bus is `EventContext<TPayload>` — never publish raw events or commands.
+
+```csharp
+// Correct — always wrap in EventContext
+await publish.Publish(EventContext.Create(
+    sourceService: OrderTopologyConstants.SourceService,
+    entity: OrderTopologyConstants.EntityName,
+    action: OrderTopologyConstants.EventActions.Created,
+    payload: new OrderCreated(orderId),
+    correlationId: correlationId), ct);
+
+// Wrong — never publish raw payloads
+await publish.Publish(new OrderCreated(orderId), ct);
+```
+
+Consumers always implement `IConsumer<EventContext<TPayload>>`, never `IConsumer<TPayload>`.
+
 ## Events (past tense)
 
 ```csharp
@@ -421,7 +440,6 @@ public record OrderCancelled(Guid OrderId);
 public record ProcessPayment(Guid OrderId);
 public record ReserveInventory(Guid OrderId);
 public record RefundPayment(Guid OrderId);
-public record CancelOrder(Guid OrderId);
 ```
 
 Rules:
@@ -429,6 +447,8 @@ Rules:
 - Use `record` for events and commands
 - Keep events immutable and in past tense
 - Keep commands imperative
+- Queue names live in `OrderQueueNames` (Contracts) — never hardcode strings
+- Routing key strings live in `OrderTopologyConstants` (Contracts) — accessible by Saga without a circular Infrastructure dependency
 
 ---
 
@@ -944,50 +964,6 @@ This is a demonstration project, not a production platform.
 - All maintenance scripts must use PowerShell `.ps1` as the default standard
 - Maintenance scripts must run on both Windows and Linux (PowerShell 7+ compatible)
 - Use `.sh` scripts only for cases where execution target is inside Docker containers
-
----
-
-# Reference Code Sources
-
-When implementing or updating code in this repository, always use local reference codebases as implementation guidance and coding standard sources.
-
-Primary dynamic reference source:
-
-- `C:\Projects\mt-saga-order-processing\references`
-
-Rules for this source:
-
-- Treat this folder as dynamic: inspect whatever projects currently exist inside it.
-- Do not hardcode assumptions about which projects are present.
-- Reuse proven patterns, naming, structure, and coding style from those projects when relevant.
-- Prefer conventions that align with Saga orchestration, messaging reliability, and maintainable boundaries.
-
-Secondary reference source:
-
-- `C:\Projects\tc-agro-solutions`
-
-Rules for this source:
-
-- Use it as an additional reference for architecture, conventions, and implementation patterns.
-- Apply patterns only when they fit this repository's context and design goals.
-- If both sources differ, prioritize consistency with this repository's documented principles first.
-
-### Shared Extensions Baseline (tc-agro common)
-
-When building reusable infrastructure in this repository, inspect and reuse patterns from:
-
-- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\Caching`
-- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\Database`
-- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Infrastructure\MessageBroker`
-- `C:\Projects\tc-agro-solutions\common\src\TC.Agro.SharedKernel\Extensions`
-
-Mandatory reuse principles:
-
-- Prefer service abstractions in app/service layers (e.g., `ICacheService`) and keep vendor libraries behind infrastructure adapters
-- Bind infrastructure options with `IOptions<T>` from appsettings sections (`Cache`, `Database`, `Messaging`)
-- Centralize infrastructure registrations in extension methods (for example `AddOrderProcessingCaching(...)`)
-- Keep helper methods cross-platform and dependency-minimal
-- Avoid duplicated plumbing in each service; place reusable extensions under infrastructure/shared modules
 
 ---
 

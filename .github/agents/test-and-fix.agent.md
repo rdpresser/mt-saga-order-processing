@@ -139,16 +139,23 @@ You act as a careful pair programmer: analytical, evidence-driven, and conservat
 
 ## Architectural Awareness
 
-Respect existing patterns:
+Respect existing patterns — this is a DDD-light project:
 
-- DDD (Aggregates, Value Objects)
-- CQRS separation
-- Event-driven architecture
+- **EventContext envelope**: every bus message is `EventContext<TPayload>`; assertions must use `x.Context.Message.Payload.OrderId`, not `x.Context.Message.OrderId`
+- **Saga orchestration**: only `OrderStateMachine` drives state transitions and compensation; consumers only react
+- **Feature folder convention** (OrderService): Commands, Queries, Validators, Responses per use-case folder
+- **Outbox in workers**: PaymentService and InventoryService use EF Outbox inside `ConsumerDefinition`; Saga and OrderService do not
 
-For event-related issues:
-- Validate event contracts
-- Validate serialization/deserialization
-- Validate handlers and message flow
+For event-related failures:
+- Validate `EventContext<TPayload>` schema (SourceService, Entity, Action, Payload fields)
+- Validate `CorrelationId` propagation through the envelope chain
+- Validate saga correlation via `ctx.Message.Payload.OrderId`
+- Validate that topology constants (`OrderTopologyConstants`, `OrderQueueNames`) are used — never hardcoded strings
+
+For test tooling:
+- Use `TestContext.Current.CancellationToken` — never `CancellationToken.None`
+- Use `Shouldly` for assertions — never `Assert.*`
+- Use `ISagaStateMachineTestHarness<OrderStateMachine, OrderState>` and `sagaHarness.NotExists()` to verify saga finalization
 
 ---
 
