@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics.CodeAnalysis;
 using MT.Saga.OrderProcessing.Contracts.Commands;
 using MT.Saga.OrderProcessing.Contracts.Events;
+using MT.Saga.OrderProcessing.Contracts.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Provider;
 using MT.Saga.OrderProcessing.InventoryService.Consumers;
@@ -22,6 +23,7 @@ public class OrderStateMachineTests
         var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: false);
         var harness = provider.GetRequiredService<ITestHarness>();
+        var sagaHarness = provider.GetRequiredService<ISagaStateMachineTestHarness<OrderStateMachine, OrderState>>();
 
         await harness.Start().ConfigureAwait(true);
 
@@ -30,15 +32,20 @@ public class OrderStateMachineTests
             var orderId = Guid.NewGuid();
 
             await harness.Bus.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "created",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.Created,
                 payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
             (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
             (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
+
+            // Saga should be finalized (removed from repository) after confirmation.
+            // NotExists returns null when the instance is gone (success), non-null when it still exists (timeout).
+            (await sagaHarness.NotExists(orderId).ConfigureAwait(true))
+                .ShouldBeNull("Saga instance should be finalized and removed after OrderConfirmed.");
         }
         finally
         {
@@ -52,6 +59,7 @@ public class OrderStateMachineTests
         var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: true);
         var harness = provider.GetRequiredService<ITestHarness>();
+        var sagaHarness = provider.GetRequiredService<ISagaStateMachineTestHarness<OrderStateMachine, OrderState>>();
 
         await harness.Start().ConfigureAwait(true);
 
@@ -60,9 +68,9 @@ public class OrderStateMachineTests
             var orderId = Guid.NewGuid();
 
             await harness.Bus.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "created",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.Created,
                 payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
             (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
@@ -71,6 +79,11 @@ public class OrderStateMachineTests
             var refundHarness = harness.GetConsumerHarness<RefundPaymentConsumer>();
             (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeTrue();
+
+            // Saga should be finalized after compensation.
+            // NotExists returns null when the instance is gone (success), non-null when it still exists (timeout).
+            (await sagaHarness.NotExists(orderId).ConfigureAwait(true))
+                .ShouldBeNull("Saga instance should be finalized and removed after OrderCancelled via compensation.");
         }
         finally
         {
@@ -84,6 +97,7 @@ public class OrderStateMachineTests
         var ct = TestContext.Current.CancellationToken;
         await using var provider = BuildHarnessProvider(useFailingInventoryConsumer: false, useFailingPaymentConsumer: true);
         var harness = provider.GetRequiredService<ITestHarness>();
+        var sagaHarness = provider.GetRequiredService<ISagaStateMachineTestHarness<OrderStateMachine, OrderState>>();
 
         await harness.Start().ConfigureAwait(true);
 
@@ -92,9 +106,9 @@ public class OrderStateMachineTests
             var orderId = Guid.NewGuid();
 
             await harness.Bus.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "created",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.Created,
                 payload: new OrderCreated(orderId)), ct).ConfigureAwait(true);
 
             (await harness.Published.Any<EventContext<OrderCancelled>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
@@ -109,6 +123,11 @@ public class OrderStateMachineTests
             var refundHarness = harness.GetConsumerHarness<RefundPaymentConsumer>();
             (await refundHarness.Consumed.Any<EventContext<RefundPayment>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
                 .ShouldBeFalse();
+
+            // Saga should be finalized after payment failure (no compensation needed).
+            // NotExists returns null when the instance is gone (success), non-null when it still exists (timeout).
+            (await sagaHarness.NotExists(orderId).ConfigureAwait(true))
+                .ShouldBeNull("Saga instance should be finalized and removed after direct payment failure.");
         }
         finally
         {
@@ -130,9 +149,9 @@ public class OrderStateMachineTests
             var orderId = Guid.NewGuid();
 
             await harness.Bus.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "inventory-reserved",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.InventoryReserved,
                 payload: new InventoryReserved(orderId)), ct).ConfigureAwait(true);
 
             (await harness.Published.Any<EventContext<OrderConfirmed>>(x => x.Context.Message.Payload.OrderId == orderId, ct).ConfigureAwait(true))
@@ -197,9 +216,9 @@ public class OrderStateMachineTests
         public async Task Consume(ConsumeContext<EventContext<ReserveInventory>> context)
         {
             await context.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "inventory-failed",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.InventoryFailed,
                 payload: new InventoryFailed(context.Message.Payload.OrderId))).ConfigureAwait(false);
         }
     }
@@ -209,9 +228,9 @@ public class OrderStateMachineTests
         public async Task Consume(ConsumeContext<EventContext<ProcessPayment>> context)
         {
             await context.Publish(EventContext.Create(
-                sourceService: "orders",
-                entity: "order",
-                action: "payment-failed",
+                sourceService: OrderTopologyConstants.SourceService,
+                entity: OrderTopologyConstants.EntityName,
+                action: OrderTopologyConstants.EventActions.PaymentFailed,
                 payload: new PaymentFailed(context.Message.Payload.OrderId))).ConfigureAwait(false);
         }
     }

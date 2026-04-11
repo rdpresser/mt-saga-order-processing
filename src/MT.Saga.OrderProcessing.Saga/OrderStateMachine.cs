@@ -32,9 +32,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             When(OrderCreated)
                 .TransitionTo(PaymentProcessing)
                 .Send(CreateQueueUri(OrderQueueNames.ProcessPayment), ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "process-payment",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.CommandActions.ProcessPayment,
                     payload: new ProcessPayment(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),
@@ -47,9 +47,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             When(PaymentProcessed)
                 .TransitionTo(InventoryReserving)
                 .Send(CreateQueueUri(OrderQueueNames.ReserveInventory), ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "reserve-inventory",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.CommandActions.ReserveInventory,
                     payload: new ReserveInventory(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),
@@ -60,9 +60,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             When(PaymentFailed)
                 .TransitionTo(Cancelled)
                 .Publish(ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "cancelled",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.EventActions.Cancelled,
                     payload: new OrderCancelled(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),
@@ -76,9 +76,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             When(InventoryReserved)
                 .TransitionTo(Confirmed)
                 .Publish(ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "confirmed",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.EventActions.Confirmed,
                     payload: new OrderConfirmed(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),
@@ -90,9 +90,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
             When(InventoryFailed)
                 .TransitionTo(Cancelled)
                 .Send(CreateQueueUri(OrderQueueNames.RefundPayment), ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "refund-payment",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.CommandActions.RefundPayment,
                     payload: new RefundPayment(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),
@@ -101,9 +101,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                     version: ctx.Message.Version,
                     metadata: ctx.Message.Metadata))
                 .Publish(ctx => EventContext.Create(
-                    sourceService: "orders",
-                    entity: "order",
-                    action: "cancelled",
+                    sourceService: OrderTopologyConstants.SourceService,
+                    entity: OrderTopologyConstants.EntityName,
+                    action: OrderTopologyConstants.EventActions.Cancelled,
                     payload: new OrderCancelled(ctx.Message.Payload.OrderId),
                     correlationId: ctx.Message.CorrelationId,
                     causationId: ctx.Message.EventId.ToString(),

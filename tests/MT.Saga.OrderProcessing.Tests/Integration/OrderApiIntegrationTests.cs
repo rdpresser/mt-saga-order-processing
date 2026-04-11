@@ -44,38 +44,11 @@ public sealed class OrderApiIntegrationTests
 
         var orderId = await _fixture.CreateOrderAsync(33.30m, $"integration-list-{Guid.NewGuid():N}@example.com", ct);
 
-        var byIdAppeared = false;
-        var byIdTimeout = DateTimeOffset.UtcNow.AddSeconds(45);
+        // Wait for the read model to be projected (any terminal status is fine here)
+        var appeared = await _fixture.WaitForOrderReadModelStatusAsync(orderId, OrderStatuses.Created, TimeSpan.FromSeconds(45), ct);
+        appeared.ShouldBeTrue();
 
-        while (DateTimeOffset.UtcNow < byIdTimeout)
-        {
-            var byId = await _fixture.GetOrderByIdAsync(orderId, ct);
-            if (byId is not null)
-            {
-                byIdAppeared = true;
-                break;
-            }
-
-            await Task.Delay(500, ct);
-        }
-
-        byIdAppeared.ShouldBeTrue();
-
-        var existsInList = false;
-        var timeout = DateTimeOffset.UtcNow.AddSeconds(30);
-
-        while (DateTimeOffset.UtcNow < timeout)
-        {
-            var orders = await _fixture.GetOrdersAsync(1, 100, ct);
-            existsInList = orders.Any(x => x.OrderId == orderId);
-            if (existsInList)
-            {
-                break;
-            }
-
-            await Task.Delay(500, ct);
-        }
-
-        existsInList.ShouldBeTrue();
+        var orders = await _fixture.GetOrdersAsync(1, 100, ct);
+        orders.Any(x => x.OrderId == orderId).ShouldBeTrue();
     }
 }
