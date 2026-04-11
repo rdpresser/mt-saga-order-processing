@@ -1,6 +1,6 @@
 # MassTransit Configuration Refactoring - Status
 
-**Last Updated:** March 29, 2026  
+**Last Updated:** April 10, 2026  
 **Objective:** Keep the MassTransit configuration explicit, modular, and aligned with the validated runtime behavior of the solution.
 
 ---
@@ -64,7 +64,21 @@ Created `/src/MT.Saga.OrderProcessing.Infrastructure/Messaging/Configuration/`:
    - raw endpoint strings such as `"process-payment"` are considered drift and should be replaced
 
 7. **Full regression suite is green**
-   - `dotnet test -c Release` passes with 61/61 tests
+   - `dotnet test` passes with 135/135 tests (unit + integration + E2E via Testcontainers)
+
+8. **Topology constants extracted to Contracts**
+   - `OrderTopologyConstants` added to `Contracts/Messaging/` — all action/entity/source strings
+   - `OrderStateMachine` replaced all hardcoded strings with `OrderTopologyConstants.*`
+   - `OrderMessagingTopology` delegates to `OrderTopologyConstants` (no duplication)
+   - Circular dependency constraint documented and enforced: `Saga → Contracts`, never `Saga → Infrastructure`
+
+9. **Test suite expanded**
+   - `OrderStateMachineTests`: saga finalization assertions via `sagaHarness.NotExists` on all terminal paths
+   - `RefundPaymentConsumerIntegrationTests`: new file — fire-and-forget behavior, idempotency
+   - `ProcessPaymentConsumerIntegrationTests`: `IConsumerTestHarness` assertion + transport-level correlation ID propagation test
+   - `ReserveInventoryConsumerIntegrationTests`: `IConsumerTestHarness` assertion + explicit `false` header edge case
+   - `OrderApiIntegrationTests`: replaced manual nested polling loop with `WaitForOrderReadModelStatusAsync`
+   - `FullSagaE2EFixture`: extracted `PublishEventToExchangeAsync<TPayload>` generic helper — ~60 lines of duplication removed
 
 ---
 
@@ -133,7 +147,7 @@ Primary runtime sections currently used by services are:
 
 - [x] Current configuration files compile
 - [x] `dotnet build` succeeds
-- [x] `dotnet test -c Release` passes
+- [x] `dotnet test` passes with 135/135 tests
 - [x] Worker services use explicit consumer registration with consumer definitions
 - [x] Queue names are centralized in `OrderMessagingTopology.Queues`
 - [x] Major outbox discoveries are documented in the KB
@@ -164,6 +178,6 @@ Primary runtime sections currently used by services are:
 
 ## Status Summary
 
-**Status:** ✅ **Validated** - Core configuration and runtime behavior are aligned with the passing test suite  
-**Complexity:** Medium - Main work now is preventing documentation drift and cleaning leftover scaffolding  
-**Risk Level:** Medium - Messaging docs can become misleading quickly if future discoveries are not recorded immediately
+**Status:** ✅ **Validated** - Core configuration, topology constants, and runtime behavior are aligned with 135/135 passing tests  
+**Complexity:** Low-Medium - Main work now is preventing documentation drift and adding missing features (CI, health checks, real worker logic)  
+**Risk Level:** Low - All critical paths have test coverage; messaging docs updated to match current architecture
