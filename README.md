@@ -5,7 +5,7 @@
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Message%20Broker-orange)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
 ![Redis](https://img.shields.io/badge/Redis-Cache-red)
-![Tests](https://img.shields.io/badge/Tests-135%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen)
 ![Architecture](https://img.shields.io/badge/Architecture-Saga%20Orchestration-green)
 
 ---
@@ -44,7 +44,7 @@ Although implemented as a monorepo for simplicity, each service is logically iso
 - **CQRS-like pipeline** — `ValidationBehavior`, `CachingBehavior`, `CacheInvalidationBehavior`, `LoggingBehavior` as MediatR-style endpoint behaviors
 - **Observability** — OpenTelemetry tracing and metrics; structured logging; CorrelationId propagation
 - **Local orchestration** — .NET Aspire with resource graph (RabbitMQ, PostgreSQL, Redis, all services)
-- **135 tests passing** — unit, integration, and E2E with Testcontainers; 0 failures, 0 warnings
+- **Comprehensive test suite passing** — unit, integration, and E2E with Testcontainers; 0 failures, 0 warnings
 
 ---
 
@@ -121,8 +121,8 @@ src/
 ├── MT.Saga.OrderProcessing.Contracts/       # Shared message contracts
 │   ├── Commands/                            # ProcessPayment, ReserveInventory, RefundPayment
 │   ├── Events/                              # OrderCreated, PaymentProcessed, InventoryReserved, …
+│   │   └── EventContext.cs                  # Universal message envelope
 │   ├── Messaging/
-│   │   ├── EventContext.cs                  # Universal message envelope
 │   │   ├── OrderTopologyConstants.cs        # String constants for Saga (no circular dep)
 │   │   └── OrderQueueNames.cs
 │   └── OrderStatuses.cs
@@ -169,7 +169,7 @@ tests/
 
 ## Test Coverage
 
-**135 tests — 0 failures — 0 warnings**
+**Test suite passing — 0 failures — 0 warnings**
 
 | Category | What is tested |
 |---|---|
@@ -194,14 +194,14 @@ Use the repository automation script (`dev.ps1`) for local workflow.
 ```powershell
 pwsh ./dev.ps1 up       # Start infrastructure (via Aspire)
 pwsh ./dev.ps1 build    # Build solution
-pwsh ./dev.ps1 test     # Run all 135 tests
+pwsh ./dev.ps1 test     # Run all tests
 pwsh ./dev.ps1 down     # Stop infrastructure
 ```
 
 Services (when running via Aspire):
 
 - **Aspire Dashboard:** http://localhost:18888
-- **Order Service API:** http://localhost:5000
+- **Order Service API:** http://localhost:5214
 - **RabbitMQ Management:** http://localhost:15672 (guest/guest)
 - **PostgreSQL:** localhost:5432
 

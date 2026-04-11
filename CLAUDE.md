@@ -74,7 +74,7 @@ InventoryService   → Infrastructure + Contracts
 
 Always use `TestContext.Current.CancellationToken` — never `CancellationToken.None`.
 
-Finalization assertion: `(await sagaHarness.NotExists(orderId, ct)).ShouldBeTrue()`.
+Finalization assertion: `(await sagaHarness.NotExists(orderId, ct)).ShouldBeNull()`.
 
 ---
 

@@ -103,7 +103,7 @@ public class ReserveInventoryConsumerIntegrationTests
     }
 
     [Fact]
-    public async Task Consume_should_publish_inventory_failed_when_out_of_stock_header_is_false()
+    public async Task Consume_should_publish_inventory_reserved_when_out_of_stock_header_is_false()
     {
         await using var provider = BuildHarnessProvider();
         var harness = provider.GetRequiredService<ITestHarness>();

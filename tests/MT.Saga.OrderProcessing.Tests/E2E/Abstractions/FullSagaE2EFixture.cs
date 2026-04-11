@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -188,10 +187,7 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         {
             var request = new HttpRequestMessage(HttpMethod.Post, "/orders")
             {
-                Content = new StringContent(
-                    $"{{\"amount\":{amount.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"customerEmail\":\"{customerEmail}\"}}",
-                    Encoding.UTF8,
-                    "application/json")
+                Content = JsonContent.Create(new CreateOrderCommand(amount, customerEmail))
             };
 
             try
@@ -220,6 +216,15 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
         finally
         {
             await bus.StopAsync(cancellationToken);
+
+            if (bus is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else if (bus is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
 
