@@ -1,5 +1,10 @@
 namespace MT.Saga.AppHost.Aspire.Configuration;
 
+public sealed class InfraSettingsOptions
+{
+    public bool UseExternalResources { get; set; }
+}
+
 public sealed class RedisOrchestrationOptions
 {
     public string Host { get; set; } = "localhost";

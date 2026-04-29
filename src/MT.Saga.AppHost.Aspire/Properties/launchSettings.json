@@ -10,6 +10,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_ROOT": "/home/devuser/.dotnet",
+        "DOTNET_HOST_PATH": "/home/devuser/.dotnet/dotnet",
+        "DOTNET_MULTILEVEL_LOOKUP": "0",
         "ASPIRE_ENV_ROOT": ".",
         "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true",
         "ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL": "http://localhost:19142",

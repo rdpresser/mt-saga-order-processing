@@ -5,7 +5,6 @@ using MT.Saga.OrderProcessing.Infrastructure.Caching.DependencyInjection;
 using MT.Saga.OrderProcessing.Infrastructure.Messaging.Configuration;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.CreateOrder;
 using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrderById;
-using MT.Saga.OrderProcessing.OrderService.Features.Orders.GetOrders;
 using MT.Saga.OrderProcessing.OrderService.Pipeline;
 
 namespace MT.Saga.OrderProcessing.OrderService.Extensions;
@@ -46,8 +45,6 @@ public static class ServiceCollectionExtensions
             CacheInvalidationBehavior<CreateOrderCommand, IResult>>();
         services.AddScoped<IEndpointBehavior<GetOrderByIdQuery, IResult>,
             CachingBehavior<GetOrderByIdQuery, IResult>>();
-        services.AddScoped<IEndpointBehavior<GetOrdersQuery, IResult>,
-            CachingBehavior<GetOrdersQuery, IResult>>();
         services.AddScoped(typeof(EndpointPipeline<,>));
         services.AddExceptionHandler<ValidationExceptionHandler>();
         services.AddProblemDetails();

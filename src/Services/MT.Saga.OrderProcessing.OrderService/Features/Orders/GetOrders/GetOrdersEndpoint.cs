@@ -23,10 +23,14 @@ public static class GetOrdersEndpoint
 
                 var orders = await dbContext.Orders
                     .AsNoTracking()
-                    .OrderByDescending(x => x.CreatedAt)
+                    .OrderByDescending(x => EF.Property<DateTime?>(x, "CreatedAt") ?? DateTime.MinValue)
                     .Skip(skip)
                     .Take(query.PageSize)
-                    .Select(x => new GetOrdersResponse(x.OrderId, x.Status, x.CreatedAt, x.UpdatedAt))
+                    .Select(x => new GetOrdersResponse(
+                        x.OrderId,
+                        x.Status,
+                        EF.Property<DateTime?>(x, "CreatedAt") ?? x.UpdatedAt ?? DateTime.UnixEpoch,
+                        x.UpdatedAt))
                     .ToListAsync(ct)
                     .ConfigureAwait(false);
 

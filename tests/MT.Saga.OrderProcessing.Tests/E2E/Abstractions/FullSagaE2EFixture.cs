@@ -31,27 +31,22 @@ namespace MT.Saga.OrderProcessing.Tests.E2E.Abstractions;
 public sealed class FullSagaE2EFixture : IAsyncLifetime
 {
     private const string DatabaseName = "mt_saga_order_processing_e2e";
+    private const string InfraModeAuto = "auto";
+    private const string InfraModeContainers = "containers";
+    private const string InfraModeExternal = "external";
     private static readonly TimeSpan WorkerStartupStabilizationDelay = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan WorkerReadinessProbeTimeout = TimeSpan.FromSeconds(90);
 
-    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:17-alpine")
-        .WithDatabase("postgres")
-        .WithUsername("postgres")
-        .WithPassword("postgres")
-        .Build();
-
-    private readonly RabbitMqContainer _rabbitMqContainer = new RabbitMqBuilder("rabbitmq:4.2.3-management-alpine")
-        .WithUsername("guest")
-        .WithPassword("guest")
-        .Build();
-
-    private readonly RedisContainer _redisContainer = new RedisBuilder("redis:8.4.0-alpine")
-        .Build();
+    private PostgreSqlContainer? _postgresContainer;
+    private RabbitMqContainer? _rabbitMqContainer;
+    private RedisContainer? _redisContainer;
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _externalEnv = LoadAppHostEnvironmentValues();
 
     private IHost? _paymentWorkerHost;
     private IHost? _inventoryWorkerHost;
+    private bool _containersStarted;
 
     public WebApplicationFactory<OrderServiceEntryPoint> OrderServiceWebApplicationFactory { get; private set; } = default!;
     public HttpClient OrderClient { get; private set; } = default!;
@@ -59,13 +54,46 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         var ct = TestContext.Current.CancellationToken;
+        var infraMode = ResolveInfraMode();
 
-        await Task.WhenAll(
-            _postgresContainer.StartAsync(ct),
-            _rabbitMqContainer.StartAsync(ct),
-            _redisContainer.StartAsync(ct));
+        if (string.Equals(infraMode, InfraModeExternal, StringComparison.OrdinalIgnoreCase))
+        {
+            ConfigureExternalSettings();
+        }
+        else
+        {
+            try
+            {
+                _postgresContainer = new PostgreSqlBuilder("postgres:17-alpine")
+                    .WithDatabase("postgres")
+                    .WithUsername("postgres")
+                    .WithPassword("postgres")
+                    .Build();
 
-        BuildSettings();
+                _rabbitMqContainer = new RabbitMqBuilder("rabbitmq:4.2.3-management-alpine")
+                    .WithUsername("guest")
+                    .WithPassword("guest")
+                    .Build();
+
+                _redisContainer = new RedisBuilder("redis:8.4.0-alpine")
+                    .Build();
+
+                await Task.WhenAll(
+                    _postgresContainer.StartAsync(ct),
+                    _rabbitMqContainer.StartAsync(ct),
+                    _redisContainer.StartAsync(ct));
+
+                _containersStarted = true;
+                BuildSettingsFromContainers();
+            }
+            catch (Exception ex) when (ShouldFallbackToExternal(infraMode))
+            {
+                ConfigureExternalSettings();
+                _containersStarted = false;
+
+                Console.WriteLine($"[E2E Fixture] Falling back to external infrastructure because Docker/Testcontainers is unavailable: {ex.Message}");
+            }
+        }
 
         // Apply migrations ONCE, before creating web app instances
         await ApplyMigrationsOnceAsync(ct);
@@ -120,9 +148,23 @@ public sealed class FullSagaE2EFixture : IAsyncLifetime
             _paymentWorkerHost.Dispose();
         }
 
-        await _redisContainer.DisposeAsync().AsTask();
-        await _rabbitMqContainer.DisposeAsync().AsTask();
-        await _postgresContainer.DisposeAsync().AsTask();
+        if (_containersStarted)
+        {
+            if (_redisContainer is not null)
+            {
+                await _redisContainer.DisposeAsync().AsTask();
+            }
+
+            if (_rabbitMqContainer is not null)
+            {
+                await _rabbitMqContainer.DisposeAsync().AsTask();
+            }
+
+            if (_postgresContainer is not null)
+            {
+                await _postgresContainer.DisposeAsync().AsTask();
+            }
+        }
     }
 
     public async Task<Guid> CreateOrderAsync(decimal amount, string customerEmail, CancellationToken cancellationToken)
@@ -647,8 +689,12 @@ WHERE ""Body"" ILIKE @orderIdMatch
             $"Order Service did not become alive within {timeout.TotalSeconds:F0} seconds (tried {attempts} times, elapsed {elapsed.TotalSeconds:F2}s). Last observation: {lastObservation}");
     }
 
-    private void BuildSettings()
+    private void BuildSettingsFromContainers()
     {
+        ArgumentNullException.ThrowIfNull(_postgresContainer);
+        ArgumentNullException.ThrowIfNull(_rabbitMqContainer);
+        ArgumentNullException.ThrowIfNull(_redisContainer);
+
         _settings["Database:Postgres:Host"] = _postgresContainer.Hostname;
         _settings["Database:Postgres:Port"] = _postgresContainer.GetMappedPublicPort(5432).ToString();
         _settings["Database:Postgres:Database"] = DatabaseName;
@@ -673,12 +719,41 @@ WHERE ""Body"" ILIKE @orderIdMatch
         _settings["ASPNETCORE_ENVIRONMENT"] = Environments.Development;
     }
 
+    private void ConfigureExternalSettings()
+    {
+        _settings["Database:Postgres:Host"] = GetRequiredExternalValue("Database:Postgres:Host", "Database__Postgres__Host");
+        _settings["Database:Postgres:Port"] = GetRequiredExternalValue("Database:Postgres:Port", "Database__Postgres__Port");
+        _settings["Database:Postgres:Database"] = GetRequiredExternalValue("Database:Postgres:Database", "Database__Postgres__Database");
+        _settings["Database:Postgres:MaintenanceDatabase"] = GetOptionalExternalValue("postgres", "Database__Postgres__MaintenanceDatabase");
+        _settings["Database:Postgres:UserName"] = GetRequiredExternalValue("Database:Postgres:UserName", "Database__Postgres__UserName", "Database__Postgres__Username");
+        _settings["Database:Postgres:Password"] = GetRequiredExternalValue("Database:Postgres:Password", "Database__Postgres__Password");
+
+        _settings["Messaging:RabbitMq:Host"] = GetRequiredExternalValue("Messaging:RabbitMq:Host", "Messaging__RabbitMq__Host");
+        _settings["Messaging:RabbitMq:Port"] = GetRequiredExternalValue("Messaging:RabbitMq:Port", "Messaging__RabbitMq__Port");
+        _settings["Messaging:RabbitMq:UserName"] = GetRequiredExternalValue("Messaging:RabbitMq:UserName", "Messaging__RabbitMq__UserName", "Messaging__RabbitMq__Username");
+        _settings["Messaging:RabbitMq:Password"] = GetRequiredExternalValue("Messaging:RabbitMq:Password", "Messaging__RabbitMq__Password");
+        _settings["Messaging:RabbitMq:VirtualHost"] = GetOptionalExternalValue("/", "Messaging__RabbitMq__VirtualHost");
+        _settings["Messaging:Topology:EventsExchangeName"] = GetOptionalExternalValue(OrderMessagingTopology.DefaultEventsExchangeName, "Messaging__Topology__EventsExchangeName");
+        _settings["Messaging:Topology:EventsExchangeType"] = GetOptionalExternalValue(OrderMessagingTopology.DefaultEventsExchangeType, "Messaging__Topology__EventsExchangeType");
+
+        _settings["Cache:Redis:Host"] = GetRequiredExternalValue("Cache:Redis:Host", "Cache__Redis__Host");
+        _settings["Cache:Redis:Port"] = GetRequiredExternalValue("Cache:Redis:Port", "Cache__Redis__Port");
+        _settings["Cache:Redis:Password"] = GetOptionalExternalValue(string.Empty, "Cache__Redis__Password");
+        _settings["Cache:Redis:Secure"] = GetOptionalExternalValue("false", "Cache__Redis__Secure");
+        _settings["Cache:Redis:InstanceName"] = GetOptionalExternalValue("mt-saga-order-processing-e2e", "Cache__Redis__InstanceName");
+
+        _settings["ASPNETCORE_ENVIRONMENT"] = Environments.Development;
+    }
+
     private string BuildDatabaseConnectionString()
     {
         var host = GetRequiredSetting("Database:Postgres:Host");
         var port = GetRequiredSetting("Database:Postgres:Port");
+        var database = GetRequiredSetting("Database:Postgres:Database");
+        var userName = GetRequiredSetting("Database:Postgres:UserName");
+        var password = GetRequiredSetting("Database:Postgres:Password");
 
-        return $"Host={host};Port={port};Database={DatabaseName};Username=postgres;Password=postgres;SearchPath=public";
+        return $"Host={host};Port={port};Database={database};Username={userName};Password={password};SearchPath=public";
     }
 
     private string GetRequiredSetting(string key)
@@ -701,6 +776,116 @@ WHERE ""Body"" ILIKE @orderIdMatch
     {
         var lifetime = host.Services.GetService<IHostApplicationLifetime>();
         return lifetime?.ApplicationStopped.IsCancellationRequested ?? false;
+    }
+
+    private static string ResolveInfraMode()
+    {
+        var value = Environment.GetEnvironmentVariable("TESTS__InfraMode")
+            ?? Environment.GetEnvironmentVariable("TESTS__INFRA_MODE")
+            ?? InfraModeAuto;
+
+        if (string.Equals(value, InfraModeContainers, StringComparison.OrdinalIgnoreCase))
+        {
+            return InfraModeContainers;
+        }
+
+        if (string.Equals(value, InfraModeExternal, StringComparison.OrdinalIgnoreCase))
+        {
+            return InfraModeExternal;
+        }
+
+        return InfraModeAuto;
+    }
+
+    private static bool ShouldFallbackToExternal(string infraMode)
+    {
+        if (!string.Equals(infraMode, InfraModeAuto, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var value = Environment.GetEnvironmentVariable("TESTS__FallbackToExternalOnContainerFailure")
+            ?? Environment.GetEnvironmentVariable("TESTS__FALLBACK_TO_EXTERNAL_ON_CONTAINER_FAILURE");
+
+        return string.IsNullOrWhiteSpace(value)
+            || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetRequiredExternalValue(string logicalName, params string[] keys)
+    {
+        var value = GetExternalValue(keys);
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        throw new InvalidOperationException(
+            $"Missing required external test setting '{logicalName}'. Provide one of: {string.Join(", ", keys)}.");
+    }
+
+    private string GetOptionalExternalValue(string defaultValue, params string[] keys)
+    {
+        var value = GetExternalValue(keys);
+        return string.IsNullOrWhiteSpace(value) ? defaultValue : value;
+    }
+
+    private string? GetExternalValue(params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var fromEnvironment = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(fromEnvironment))
+            {
+                return fromEnvironment;
+            }
+
+            if (_externalEnv.TryGetValue(key, out var fromEnvFile) && !string.IsNullOrWhiteSpace(fromEnvFile))
+            {
+                return fromEnvFile;
+            }
+        }
+
+        return null;
+    }
+
+    private static Dictionary<string, string?> LoadAppHostEnvironmentValues()
+    {
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "src", "MT.Saga.AppHost.Aspire", ".env");
+            if (File.Exists(candidate))
+            {
+                foreach (var rawLine in File.ReadAllLines(candidate))
+                {
+                    var line = rawLine.Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                    {
+                        continue;
+                    }
+
+                    var separator = line.IndexOf('=');
+                    if (separator <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line[..separator].Trim();
+                    var value = line[(separator + 1)..].Trim();
+                    values[key] = value;
+                }
+
+                break;
+            }
+
+            current = current.Parent;
+        }
+
+        return values;
     }
 
     private sealed class OrderServiceFactory(Dictionary<string, string?> settings)
